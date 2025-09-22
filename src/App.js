@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Outle
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Home from './pages/Home'; // Will rename to Motions
+import Issues from './pages/Issues';
+import IssueDetail from './pages/IssueDetail';
 import TasksPage from './pages/TasksKanban';
 import NewMotion from './pages/NewMotion';
 import MotionPage from './pages/MotionPage';
@@ -141,6 +143,7 @@ function MainLayout() {
         {/* Sidebar */}
         <div style={{ width: 210, background: '#1976d2', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '32px 0', minHeight: 'calc(100vh - 60px)' }}>
           <div style={{ width: '100%' }}>
+            <Link to="/issues" style={{ display: 'block', color: location.pathname === '/issues' ? '#fff' : '#bbdefb', background: location.pathname === '/issues' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/issues' ? '4px solid #fff' : '4px solid transparent' }}>Issues</Link>
             <Link to="/motions" style={{ display: 'block', color: location.pathname === '/motions' ? '#fff' : '#bbdefb', background: location.pathname === '/motions' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/motions' ? '4px solid #fff' : '4px solid transparent' }}>Motions</Link>
             <Link to="/tasks" style={{ display: 'block', color: location.pathname === '/tasks' ? '#fff' : '#bbdefb', background: location.pathname === '/tasks' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/tasks' ? '4px solid #fff' : '4px solid transparent' }}>Tasks</Link>
             <Link to="/settings" style={{ display: 'block', color: location.pathname === '/settings' ? '#fff' : '#bbdefb', background: location.pathname === '/settings' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/settings' ? '4px solid #fff' : '4px solid transparent' }}>Settings</Link>
@@ -165,6 +168,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route element={<MainLayout />}>
+              <Route path="/issues" element={<Issues />} />
+              <Route path="/issue/:id" element={<IssueDetail />} />
               <Route path="/motions" element={<Home />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/new-motion" element={<NewMotion />} />

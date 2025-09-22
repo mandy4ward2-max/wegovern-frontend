@@ -231,3 +231,101 @@ export async function sendTestEmail(to, subject, message) {
     return { error: true, message: e.message };
   }
 }
+
+// Issues API
+export async function getIssues(orgId) {
+  try {
+    const token = localStorage.getItem('token');
+    const url = `${API_BASE_URL}/issues?orgId=${orgId}`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getIssueById(id) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/issues/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function createIssue(title, description, status, priority, assignedToId) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/issues`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title, description, status, priority, assignedToId })
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function updateIssue(id, updates) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/issues/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updates)
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function deleteIssue(id) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/issues/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getIssueStats(orgId) {
+  try {
+    const token = localStorage.getItem('token');
+    const url = `${API_BASE_URL}/issues/stats?orgId=${orgId}`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getUsers() {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/users/org/all`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
