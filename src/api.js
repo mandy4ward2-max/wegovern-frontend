@@ -1,0 +1,233 @@
+// Get all votes for a motion (with user info)
+export async function getVotesByMotion(motionId) {
+  const token = localStorage.getItem('token');
+  const url = `${API_BASE_URL}/votes?motionId=${motionId}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return await res.json();
+}
+// Voting API
+export async function getVoteTally(motionId, userId) {
+  const token = localStorage.getItem('token');
+  const url = `${API_BASE_URL}/votes/tally?motionId=${motionId}${userId ? `&userId=${userId}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  return await res.json();
+}
+
+export async function createVote(motionId, userId, voteType) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE_URL}/votes`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ motionId, userId, voteType })
+  });
+  return await res.json();
+}
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
+
+export async function login(email, password) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+    return data;
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function register(user) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email })
+    });
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+    return data;
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getMotions({ orgId, status } = {}) {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return { error: true, message: 'No token provided' };
+    }
+    let url = `${API_BASE_URL}/motions`;
+    const params = [];
+    if (orgId) params.push(`orgId=${encodeURIComponent(orgId)}`);
+    if (status) params.push(`status=${encodeURIComponent(status)}`);
+    if (params.length) url += `?${params.join('&')}`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function logout() {
+  localStorage.removeItem('token');
+}
+
+export async function getTasks(status) {
+  try {
+    const token = localStorage.getItem('token');
+    console.log('getTasks - token exists:', !!token);
+    let url = `${API_BASE_URL}/tasks`;
+    
+    // Only add status parameter if it's not 'all'
+    if (status && status !== 'all') {
+      url += `?status=${status}`;
+    }
+    
+    console.log('getTasks - URL:', url);
+    
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    console.log('getTasks - response status:', res.status);
+    
+    const data = await res.json();
+    console.log('getTasks - response data:', data);
+    
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('getTasks - error:', e);
+    return [];
+  }
+}
+
+export async function completeTask(taskId, comment, dateCompleted) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ completed: true, completeComment: comment, dateCompleted })
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getComments(motionId) {
+  // Using fetch API as requested
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/comments?motionId=${motionId}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const comments = await response.json();
+  return Array.isArray(comments) ? comments : [];
+}
+
+export async function addComment(motionId, text, parentId = null) {
+  try {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    let userId = null;
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        userId = user.id;
+      } catch {}
+    }
+    // Ensure motionId is a number
+    const motionIdNum = Number(motionId);
+    const res = await fetch(`${API_BASE_URL}/comments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ motionId: motionIdNum, text, parentId, userId })
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function editComment(commentId, text) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/comments/${commentId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text })
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+export async function deleteComment(commentId) {
+  try {
+    const token = localStorage.getItem('token');
+    await fetch(`${API_BASE_URL}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+  } catch (e) {
+    // fail silently
+  }
+}
+
+export async function getMotionById(id) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/motions/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
+// Email Notifications API
+export async function sendTestEmail(to, subject, message) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/notifications/test-email`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ to, subject, message })
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
