@@ -437,29 +437,7 @@ function TasksPage() {
           border: isCompleted ? '1px solid #e9ecef' : 'none'
         }}
       >
-        {isCompleted && (
-          <div style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            fontSize: '18px',
-            color: '#28a745'
-          }}>
-            ✅
-          </div>
-        )}
-        
-        {!isDraggable && !isCompleted && (
-          <div style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            fontSize: '16px',
-            color: '#6c757d'
-          }}>
-            🔒
-          </div>
-        )}
+        {/* Icons removed per request (checkmark and lock) */}
         
         <div style={{ 
           fontWeight: 'bold', 
