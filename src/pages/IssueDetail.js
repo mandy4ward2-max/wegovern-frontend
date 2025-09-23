@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getIssueById, updateIssue, getUsers } from '../api';
+import { getIssueById, updateIssue, getUsers, getIssueComments, addIssueComment, editComment, deleteComment, getMotions, getTasks } from '../api';
 import { useWebSocket } from '../WebSocketContext';
+import CommentsSection from '../components/CommentsSection';
 
 function IssueDetail() {
   const { id } = useParams();
@@ -11,7 +12,15 @@ function IssueDetail() {
   const [users, setUsers] = useState([]);
   const [editing, setEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showMotionsModal, setShowMotionsModal] = useState(false);
+  const [showTasksModal, setShowTasksModal] = useState(false);
+  const [relatedMotions, setRelatedMotions] = useState([]);
+  const [relatedTasks, setRelatedTasks] = useState([]);
   const { socket } = useWebSocket();
+
+  // Comments state
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -30,7 +39,7 @@ function IssueDetail() {
     }
   }, []);
 
-  // Fetch issue details
+  // Fetch issue details and comments
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -49,6 +58,12 @@ function IssueDetail() {
             priority: issueData.priority,
             assignedToId: issueData.assignedToId || ''
           });
+          
+          // Fetch comments for this issue
+          setCommentsLoading(true);
+          const commentsData = await getIssueComments(id);
+          setComments(Array.isArray(commentsData) ? commentsData : []);
+          setCommentsLoading(false);
         } else {
           console.error('Error fetching issue:', issueData);
         }
@@ -66,7 +81,7 @@ function IssueDetail() {
     }
   }, [id]);
 
-  // Listen for real-time issue updates
+  // Listen for real-time issue and comment updates
   useEffect(() => {
     if (!socket || !issue) return;
 
@@ -76,10 +91,33 @@ function IssueDetail() {
       }
     };
 
+    const handleCommentUpdate = (data) => {
+      if (data.issueId && data.issueId === issue.id) {
+        if (data.type === 'comment') {
+          setComments(prev => {
+            // Check if comment already exists to avoid duplicates
+            const exists = prev.some(comment => comment.id === data.comment.id);
+            if (!exists) {
+              return [...prev, data.comment];
+            }
+            return prev;
+          });
+        } else if (data.type === 'commentUpdated') {
+          setComments(prev => prev.map(comment => 
+            comment.id === data.comment.id ? data.comment : comment
+          ));
+        } else if (data.type === 'commentDeleted') {
+          setComments(prev => prev.filter(comment => comment.id !== data.commentId));
+        }
+      }
+    };
+
     socket.on('issueUpdate', handleIssueUpdate);
+    socket.on('comment', handleCommentUpdate);
 
     return () => {
       socket.off('issueUpdate', handleIssueUpdate);
+      socket.off('comment', handleCommentUpdate);
     };
   }, [socket, issue]);
 
@@ -97,6 +135,83 @@ function IssueDetail() {
     } catch (error) {
       console.error('Error updating issue:', error);
       alert('Failed to update issue');
+    }
+  };
+
+  // Comment handling functions for CommentsSection component
+  // Handle motions modal
+  const handleOpenMotionsModal = async () => {
+    // Use the motions already loaded with the issue
+    setRelatedMotions(issue.Motion || []);
+    setShowMotionsModal(true);
+  };
+
+  // Handle tasks modal
+  const handleOpenTasksModal = async () => {
+    // Use the tasks already loaded with the issue
+    setRelatedTasks(issue.Task || []);
+    setShowTasksModal(true);
+  };
+
+  // Handle motions and tasks navigation
+  const handleMotionClick = (motionId, motionStatus) => {
+    if (motionStatus === 'passed' || motionStatus === 'defeated') {
+      navigate(`/completed-motions/${motionId}`);
+    } else {
+      navigate(`/motions/${motionId}`);
+    }
+    setShowMotionsModal(false);
+  };
+
+  const handleAddComment = async (text) => {
+    try {
+      const comment = await addIssueComment(id, text);
+      if (comment.error) {
+        alert('Failed to add comment: ' + comment.message);
+      }
+      // Don't add to state here - let WebSocket handle it to avoid duplicates
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      alert('Failed to add comment');
+    }
+  };
+
+  const handleEditComment = async (commentId, text) => {
+    try {
+      const updatedComment = await editComment(commentId, text);
+      if (!updatedComment.error) {
+        setComments(prev => prev.map(comment => 
+          comment.id === commentId ? updatedComment : comment
+        ));
+      } else {
+        alert('Failed to edit comment: ' + updatedComment.message);
+      }
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      alert('Failed to edit comment');
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await deleteComment(commentId);
+      setComments(prev => prev.filter(comment => comment.id !== commentId));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment');
+    }
+  };
+
+  const handleReplyToComment = async (parentId, text) => {
+    try {
+      const comment = await addIssueComment(id, text, parentId);
+      if (comment.error) {
+        alert('Failed to add reply: ' + comment.message);
+      }
+      // Don't add to state here - let WebSocket handle it to avoid duplicates
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      alert('Failed to add reply');
     }
   };
 
@@ -419,93 +534,234 @@ function IssueDetail() {
       <div style={{ marginTop: '40px', borderTop: '2px solid #f8f9fa', paddingTop: '32px' }}>
         <h3 style={{ fontSize: '20px', color: '#333', marginBottom: '24px' }}>Related Content</h3>
         
-        {/* Statistics */}
+        {/* Clickable Statistics Boxes */}
         <div style={{ display: 'flex', gap: '32px', marginBottom: '32px' }}>
-          <div style={{ 
-            background: '#e3f2fd', 
-            borderRadius: '8px', 
-            padding: '16px', 
-            textAlign: 'center',
-            minWidth: '120px'
-          }}>
+          <div 
+            onClick={handleOpenMotionsModal}
+            style={{ 
+              background: '#e3f2fd', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              textAlign: 'center',
+              minWidth: '120px',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
+          >
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
-              {issue.Motion?.length || 0}
+              {issue.motionCount || 0}
             </div>
             <div style={{ fontSize: '14px', color: '#1976d2' }}>Motions</div>
           </div>
-          <div style={{ 
-            background: '#fff3e0', 
-            borderRadius: '8px', 
-            padding: '16px', 
-            textAlign: 'center',
-            minWidth: '120px'
-          }}>
+          <div 
+            onClick={handleOpenTasksModal}
+            style={{ 
+              background: '#fff3e0', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              textAlign: 'center',
+              minWidth: '120px',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
+          >
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f57c00' }}>
-              {issue.Task?.length || 0}
+              {issue.taskCount || 0}
             </div>
             <div style={{ fontSize: '14px', color: '#f57c00' }}>Tasks</div>
           </div>
         </div>
 
-        {/* Related Motions */}
-        {issue.Motion && issue.Motion.length > 0 && (
-          <div style={{ marginBottom: '32px' }}>
-            <h4 style={{ fontSize: '16px', color: '#333', marginBottom: '16px' }}>Related Motions</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {issue.Motion.map(motion => (
-                <div 
-                  key={motion.id}
-                  style={{
-                    border: '1px solid #e9ecef',
-                    borderRadius: '6px',
-                    padding: '16px',
-                    backgroundColor: '#fff'
-                  }}
-                >
-                  <div style={{ fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
-                    {motion.motion}
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#666' }}>
-                    By {motion.User.firstName} {motion.User.lastName} • 
-                    {motion._count.votes} votes • 
-                    {motion._count.comments} comments • 
-                    Status: <strong>{motion.status}</strong>
-                  </div>
-                </div>
-              ))}
+        {/* Comments Section */}
+        <div style={{ marginTop: '40px', borderTop: '1px solid #e9ecef', paddingTop: '32px' }}>
+          {commentsLoading ? (
+            <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+              Loading comments...
             </div>
-          </div>
-        )}
-
-        {/* Related Tasks */}
-        {issue.Task && issue.Task.length > 0 && (
-          <div>
-            <h4 style={{ fontSize: '16px', color: '#333', marginBottom: '16px' }}>Related Tasks</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {issue.Task.map(task => (
-                <div 
-                  key={task.id}
-                  style={{
-                    border: '1px solid #e9ecef',
-                    borderRadius: '6px',
-                    padding: '16px',
-                    backgroundColor: '#fff'
-                  }}
-                >
-                  <div style={{ fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
-                    {task.action}
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#666' }}>
-                    Assigned to {task.user.firstName} {task.user.lastName} • 
-                    Status: <strong>{task.status.replace('_', ' ')}</strong>
-                    {task.due && ` • Due: ${new Date(task.due).toLocaleDateString()}`}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          ) : (
+            <CommentsSection
+              comments={comments}
+              motionId={null}
+              userId={currentUser?.id}
+              onAddComment={handleAddComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onReplyToComment={handleReplyToComment}
+            />
+          )}
+        </div>
       </div>
+
+      {/* Motions Modal */}
+      {showMotionsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '600px',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            width: '90%'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: '#333' }}>Related Motions</h3>
+              <button 
+                onClick={() => setShowMotionsModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {relatedMotions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                  No motions found
+                </div>
+              ) : (
+                relatedMotions.map(motion => (
+                  <div 
+                    key={motion.id}
+                    onClick={() => handleMotionClick(motion.id, motion.status)}
+                    style={{
+                      border: '1px solid #e9ecef',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      backgroundColor: '#fff',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#fff'}
+                  >
+                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
+                      {motion.motion || motion.summary}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      By {motion.User?.firstName} {motion.User?.lastName} • 
+                      Status: <strong>{motion.status}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tasks Modal */}
+      {showTasksModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '600px',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            width: '90%'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: '#333' }}>Related Tasks</h3>
+              <button 
+                onClick={() => setShowTasksModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {relatedTasks.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                  No tasks found
+                </div>
+              ) : (
+                relatedTasks.map(task => (
+                  <div 
+                    key={task.id}
+                    style={{
+                      border: '1px solid #e9ecef',
+                      borderRadius: '6px',
+                      padding: '16px',
+                      backgroundColor: '#fff'
+                    }}
+                  >
+                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
+                      {task.action || task.title}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '8px' }}>
+                      {task.description && (
+                        <>
+                          {task.description}
+                          <br />
+                        </>
+                      )}
+                      Assigned to: {task.user?.firstName} {task.user?.lastName} • 
+                      Status: <strong style={{ 
+                        color: task.status === 'COMPLETED' ? '#28a745' : 
+                              task.status === 'IN_PROGRESS' ? '#ffc107' : '#6c757d' 
+                      }}>
+                        {task.status?.replace('_', ' ')}
+                      </strong>
+                      {task.due && ` • Due: ${new Date(task.due).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

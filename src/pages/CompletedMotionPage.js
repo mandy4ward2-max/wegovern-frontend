@@ -69,7 +69,8 @@ function CompletedMotionPage() {
   // Comment handlers
   const handleAddComment = async (text) => {
     if (!text.trim()) return;
-    await addComment(id, text, null);
+    // addComment expects: (text, { motionId | issueId | taskId }, parentId)
+    await addComment(text, { motionId: Number(id) }, null);
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });
     }
@@ -78,7 +79,8 @@ function CompletedMotionPage() {
 
   const handleReplyToComment = async (parentId, text) => {
     if (!text.trim()) return;
-    await addComment(id, text, parentId);
+    // addComment expects: (text, { motionId | issueId | taskId }, parentId)
+    await addComment(text, { motionId: Number(id) }, parentId);
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });
     }

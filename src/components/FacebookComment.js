@@ -79,7 +79,17 @@ const FacebookComment = ({
           fontWeight: 'bold',
           flexShrink: 0
         }}>
-          {comment.username ? comment.username.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+          {(() => {
+            const fallbackName = comment.userId === currentUserId ? 'You' : (comment.user?.name || [comment.user?.firstName, comment.user?.lastName].filter(Boolean).join(' '));
+            const name = comment.username || fallbackName || 'U';
+            return name
+              .split(' ')
+              .filter(Boolean)
+              .map(n => n[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2);
+          })()}
         </div>
         
         <div style={{ flex: 1 }}>
@@ -101,7 +111,10 @@ const FacebookComment = ({
                 fontSize: 13, 
                 color: '#050505' 
               }}>
-                {comment.username || 'Unknown User'}
+                  {(() => {
+                    const fallbackName = comment.userId === currentUserId ? 'You' : (comment.user?.name || [comment.user?.firstName, comment.user?.lastName].filter(Boolean).join(' ').trim());
+                    return comment.username || fallbackName || 'Unknown User';
+                  })()}
               </span>
               {comment.editable && (
                 <div style={{ fontSize: 12, color: '#65676b' }}>

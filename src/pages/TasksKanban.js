@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getTasks } from '../api';
+import { getTasks, getTaskComments, addTaskComment, editComment, deleteComment } from '../api';
 import { useWebSocket } from '../WebSocketContext';
+import CommentsSection from '../components/CommentsSection';
 
 function TasksPage() {
   const [tasks, setTasks] = useState([]);
@@ -13,6 +14,11 @@ function TasksPage() {
   const [completionTask, setCompletionTask] = useState(null);
   const [completionComment, setCompletionComment] = useState('');
   const [originalStatus, setOriginalStatus] = useState('');
+
+  // Modal state for task details
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskComments, setTaskComments] = useState([]);
 
   // Get current user from localStorage
   useEffect(() => {
@@ -267,6 +273,143 @@ function TasksPage() {
     console.log('Task completion cancelled');
   };
 
+  // Handle opening task detail modal
+  const handleOpenTaskModal = async (task) => {
+    setSelectedTask(task);
+    setShowTaskModal(true);
+    
+    // Fetch comments for this task
+    try {
+      const comments = await getTaskComments(task.id);
+      setTaskComments(Array.isArray(comments) ? comments : []);
+    } catch (error) {
+      console.error('Error fetching task comments:', error);
+      setTaskComments([]);
+    }
+  };
+
+  // Handle closing task detail modal
+  const handleCloseTaskModal = () => {
+    setShowTaskModal(false);
+    setSelectedTask(null);
+    setTaskComments([]);
+  };
+
+  // Comment handling functions for task modal
+  const buildUsername = (comment) => {
+    const userStr = localStorage.getItem('user');
+    let localUser = null;
+    try { localUser = userStr ? JSON.parse(userStr) : null; } catch {}
+    return (
+      comment?.username ||
+      comment?.user?.name ||
+      [comment?.user?.firstName, comment?.user?.lastName].filter(Boolean).join(' ').trim() ||
+      [localUser?.firstName, localUser?.lastName].filter(Boolean).join(' ').trim() ||
+      (currentUser?.id && comment?.userId === currentUser.id ? 'You' : '') ||
+      'Unknown User'
+    );
+  };
+
+  const normalizeComment = (c) => ({
+    ...c,
+    username: buildUsername(c),
+    editable: currentUser?.id === c?.userId
+  });
+
+  const handleAddTaskComment = async (text) => {
+    if (!selectedTask) return;
+    
+    try {
+      const comment = await addTaskComment(selectedTask.id, text);
+      if (comment.error) {
+        alert('Failed to add comment: ' + comment.message);
+      } else {
+        const normalized = normalizeComment(comment);
+        // Add to local state (avoid duplicate by id, coerce types)
+        setTaskComments(prev => {
+          if (prev.some(c => String(c.id) === String(normalized.id))) return prev;
+          return [...prev, normalized];
+        });
+      }
+    } catch (error) {
+      console.error('Error adding task comment:', error);
+      alert('Failed to add comment');
+    }
+  };
+
+  const handleEditTaskComment = async (commentId, text) => {
+    try {
+      const updatedComment = await editComment(commentId, text);
+      if (!updatedComment.error) {
+        setTaskComments(prev => prev.map(comment => 
+          comment.id === commentId ? updatedComment : comment
+        ));
+      } else {
+        alert('Failed to edit comment: ' + updatedComment.message);
+      }
+    } catch (error) {
+      console.error('Error editing comment:', error);
+      alert('Failed to edit comment');
+    }
+  };
+
+  const handleDeleteTaskComment = async (commentId) => {
+    try {
+      await deleteComment(commentId);
+      setTaskComments(prev => prev.filter(comment => comment.id !== commentId));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment');
+    }
+  };
+
+  const handleReplyToTaskComment = async (parentId, text) => {
+    if (!selectedTask) return;
+    
+    try {
+      const comment = await addTaskComment(selectedTask.id, text, parentId);
+      if (comment.error) {
+        alert('Failed to add reply: ' + comment.message);
+      } else {
+        const normalized = normalizeComment(comment);
+        setTaskComments(prev => {
+          if (prev.some(c => String(c.id) === String(normalized.id))) return prev;
+          return [...prev, normalized];
+        });
+      }
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      alert('Failed to add reply');
+    }
+  };
+
+  // WebSocket: live updates for comments within the open task modal
+  useEffect(() => {
+    if (!socket || !showTaskModal || !selectedTask) return;
+
+    const handleCommentEvent = (event) => {
+      // Only process events for the currently opened task
+      if (!event || event.taskId !== selectedTask.id) return;
+
+      if (event.type === 'comment' && event.comment) {
+        const c = normalizeComment(event.comment);
+        setTaskComments(prev => {
+          // avoid duplicates
+          const exists = prev.some(item => String(item.id) === String(c.id));
+          return exists ? prev : [...prev, c];
+        });
+      } else if (event.type === 'commentUpdated' && event.comment) {
+        const c = normalizeComment(event.comment);
+        setTaskComments(prev => prev.map(item => String(item.id) === String(c.id) ? { ...item, ...c } : item));
+      } else if (event.type === 'commentDeleted' && event.commentId) {
+        setTaskComments(prev => prev.filter(item => String(item.id) !== String(event.commentId)));
+      }
+    };
+
+    socket.on('comment', handleCommentEvent);
+    return () => socket.off('comment', handleCommentEvent);
+  }, [socket, showTaskModal, selectedTask, currentUser?.id]);
+
   // Task Card Component
   const TaskCard = ({ task }) => {
     const isDraggable = canDragTask(task);
@@ -278,6 +421,7 @@ function TasksPage() {
         draggable={isDraggable}
         onDragStart={(e) => handleDragStart(e, task)}
         onDragEnd={handleDragEnd}
+        onDoubleClick={() => handleOpenTaskModal(task)}
         style={{
           backgroundColor: isCompleted ? '#f8f9fa' : '#fff',
           borderLeft: `8px solid ${isCompleted ? '#28a745' : cardColor}`,
@@ -285,7 +429,7 @@ function TasksPage() {
           padding: '24px',
           marginBottom: '16px',
           boxShadow: isCompleted ? '0 2px 4px rgba(0,0,0,0.05)' : '0 4px 8px rgba(0,0,0,0.1)',
-          cursor: isDraggable ? 'grab' : 'default',
+          cursor: isDraggable ? 'grab' : 'pointer',
           opacity: isCompleted ? 0.85 : (isDraggable ? 1 : 0.7),
           position: 'relative',
           fontSize: '16px',
@@ -346,6 +490,8 @@ function TasksPage() {
             "{task.completeComment}"
           </div>
         )}
+        
+        {/* Indicator removed per request */}
       </div>
     );
   };
@@ -493,6 +639,145 @@ function TasksPage() {
               >
                 Yes, Complete Task
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Detail Modal */}
+      {showTaskModal && selectedTask && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '800px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            position: 'relative'
+          }}>
+            {/* Close button */}
+            <button 
+              onClick={handleCloseTaskModal}
+              style={{ 
+                position: 'absolute', 
+                top: '16px', 
+                right: '16px', 
+                background: 'none', 
+                border: 'none', 
+                fontSize: '24px', 
+                color: '#888', 
+                cursor: 'pointer',
+                padding: '4px',
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+
+            {/* Task Details */}
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ 
+                margin: '0 0 16px 0', 
+                fontSize: '28px', 
+                fontWeight: 'bold',
+                color: '#333'
+              }}>
+                {selectedTask.action}
+              </h2>
+
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '16px',
+                marginBottom: '24px'
+              }}>
+                <div>
+                  <strong style={{ color: '#666', fontSize: '14px' }}>Status:</strong>
+                  <div style={{ 
+                    display: 'inline-block',
+                    marginLeft: '8px',
+                    padding: '4px 12px',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    backgroundColor: selectedTask.status === 'COMPLETED' ? '#28a745' : 
+                                   selectedTask.status === 'IN_PROGRESS' ? '#fd7e14' : '#007bff',
+                    color: 'white'
+                  }}>
+                    {selectedTask.status.replace('_', ' ')}
+                  </div>
+                </div>
+
+                <div>
+                  <strong style={{ color: '#666', fontSize: '14px' }}>Assigned to:</strong>
+                  <div style={{ marginLeft: '8px', display: 'inline' }}>
+                    {selectedTask.username || 'Unknown'}
+                  </div>
+                </div>
+
+                <div>
+                  <strong style={{ color: '#666', fontSize: '14px' }}>Due Date:</strong>
+                  <div style={{ 
+                    marginLeft: '8px', 
+                    display: 'inline',
+                    color: getDueDateColor(selectedTask.due),
+                    fontWeight: selectedTask.due && new Date(selectedTask.due) < new Date() ? 'bold' : 'normal'
+                  }}>
+                    {formatDueDate(selectedTask.due)}
+                  </div>
+                </div>
+
+                {selectedTask.motionTitle && (
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '14px' }}>Related Motion:</strong>
+                    <div style={{ marginLeft: '8px', display: 'inline', fontStyle: 'italic' }}>
+                      {selectedTask.motionTitle}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedTask.completeComment && selectedTask.status === 'COMPLETED' && (
+                <div style={{ 
+                  backgroundColor: '#d4edda',
+                  border: '1px solid #c3e6cb',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  marginTop: '16px'
+                }}>
+                  <strong style={{ color: '#155724' }}>Completion Note:</strong>
+                  <div style={{ color: '#155724', marginTop: '8px', fontStyle: 'italic' }}>
+                    "{selectedTask.completeComment}"
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Comments Section */}
+            <div style={{ borderTop: '1px solid #e9ecef', paddingTop: '24px' }}>
+              <CommentsSection
+                comments={taskComments}
+                motionId={null}
+                userId={currentUser?.id}
+                onAddComment={handleAddTaskComment}
+                onEditComment={handleEditTaskComment}
+                onDeleteComment={handleDeleteTaskComment}
+                onReplyToComment={handleReplyToTaskComment}
+              />
             </div>
           </div>
         </div>

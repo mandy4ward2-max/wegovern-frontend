@@ -77,10 +77,43 @@ function Issues() {
       }
     };
 
+    const handleCommentUpdate = (data) => {
+      console.log('Received comment update in Issues:', data);
+      
+      // Update comment count for the affected issue
+      if (data.issueId && data.type === 'comment') {
+        setIssues(prevIssues => 
+          prevIssues.map(issue => {
+            if (issue.id === data.issueId) {
+              return {
+                ...issue,
+                commentCount: (issue.commentCount || 0) + 1
+              };
+            }
+            return issue;
+          })
+        );
+      } else if (data.issueId && data.type === 'commentDeleted') {
+        setIssues(prevIssues => 
+          prevIssues.map(issue => {
+            if (issue.id === data.issueId) {
+              return {
+                ...issue,
+                commentCount: Math.max(0, (issue.commentCount || 0) - 1)
+              };
+            }
+            return issue;
+          })
+        );
+      }
+    };
+
     socket.on('issueUpdate', handleIssueUpdate);
+    socket.on('comment', handleCommentUpdate);
 
     return () => {
       socket.off('issueUpdate', handleIssueUpdate);
+      socket.off('comment', handleCommentUpdate);
     };
   }, [socket]);
 

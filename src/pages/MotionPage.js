@@ -120,7 +120,8 @@ function MotionPage() {
   // Comment/reply handlers
   const handleAddComment = async (text) => {
     if (!text.trim()) return;
-    await addComment(id, text, null); // parentId null for top-level
+    // addComment expects: (text, { motionId | issueId | taskId }, parentId)
+    await addComment(text, { motionId: Number(id) }, null); // parentId null for top-level
     // Broadcast to WebSocket
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });
@@ -130,7 +131,8 @@ function MotionPage() {
 
   const handleReplyToComment = async (parentId, text) => {
     if (!text.trim()) return;
-    await addComment(id, text, parentId); // pass parentId for nesting
+    // addComment expects: (text, { motionId | issueId | taskId }, parentId)
+    await addComment(text, { motionId: Number(id) }, parentId); // pass parentId for nesting
     // Broadcast to WebSocket
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });

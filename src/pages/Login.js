@@ -21,7 +21,7 @@ function Login() {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
         console.log(`Logged in as ${data.user.firstName} ${data.user.lastName} via ${provider}`);
-        navigate('/motions');
+        navigate('/issues');
       } else {
         alert(data.error || 'Login failed.');
       }

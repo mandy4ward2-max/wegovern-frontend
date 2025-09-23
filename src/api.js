@@ -136,17 +136,23 @@ export async function completeTask(taskId, comment, dateCompleted) {
   }
 }
 
-export async function getComments(motionId) {
+export async function getComments(motionId, issueId, taskId) {
   // Using fetch API as requested
   const token = localStorage.getItem('token');
-  const response = await fetch(`${API_BASE_URL}/comments?motionId=${motionId}`, {
+  let url = `${API_BASE_URL}/comments?`;
+  
+  if (motionId) url += `motionId=${motionId}`;
+  else if (issueId) url += `issueId=${issueId}`;
+  else if (taskId) url += `taskId=${taskId}`;
+  
+  const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   const comments = await response.json();
   return Array.isArray(comments) ? comments : [];
 }
 
-export async function addComment(motionId, text, parentId = null) {
+export async function addComment(text, { motionId, issueId, taskId }, parentId = null) {
   try {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
@@ -157,18 +163,25 @@ export async function addComment(motionId, text, parentId = null) {
         userId = user.id;
       } catch {}
     }
-    // Ensure motionId is a number
-    const motionIdNum = Number(motionId);
+    
+    const payload = { text, parentId, userId };
+    if (motionId) payload.motionId = Number(motionId);
+    else if (issueId) payload.issueId = Number(issueId);
+    else if (taskId) payload.taskId = Number(taskId);
+    
     const res = await fetch(`${API_BASE_URL}/comments`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ motionId: motionIdNum, text, parentId, userId })
+      body: JSON.stringify(payload)
     });
-    return await res.json();
+    
+    const result = await res.json();
+    return result;
   } catch (e) {
+    console.error('🔗 Error in addComment:', e);
     return { error: true, message: e.message };
   }
 }
@@ -328,4 +341,22 @@ export async function getUsers() {
   } catch (e) {
     return { error: true, message: e.message };
   }
+}
+
+// Convenience functions for issue comments
+export async function getIssueComments(issueId) {
+  return getComments(null, issueId, null);
+}
+
+export async function addIssueComment(issueId, text, parentId = null) {
+  return addComment(text, { issueId }, parentId);
+}
+
+// Convenience functions for task comments
+export async function getTaskComments(taskId) {
+  return getComments(null, null, taskId);
+}
+
+export async function addTaskComment(taskId, text, parentId = null) {
+  return addComment(text, { taskId }, parentId);
 }
