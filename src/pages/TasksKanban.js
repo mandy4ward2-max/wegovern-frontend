@@ -444,7 +444,7 @@ function TasksPage() {
           marginBottom: '12px', 
           color: isCompleted ? '#6c757d' : '#333', 
           fontSize: '18px',
-          textDecoration: isCompleted ? 'line-through' : 'none'
+          textDecoration: 'none'
         }}>
           {task.action}
         </div>
@@ -453,9 +453,15 @@ function TasksPage() {
           Assigned to: {task.username || 'Unknown'}
         </div>
         
-        <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
-          Due: {formatDueDate(task.due)}
-        </div>
+        {isCompleted ? (
+          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
+            Completed: {task.dateCompleted ? formatDueDate(task.dateCompleted) : '—'}
+          </div>
+        ) : (
+          <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
+            Due: {formatDueDate(task.due)}
+          </div>
+        )}
         
         {task.motionTitle && (
           <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>
