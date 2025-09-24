@@ -219,6 +219,7 @@ const MentionInput = ({
         onKeyDown={handleKeyDown}
         data-placeholder={placeholder}
         disabled={disabled}
+        dir="ltr"
         style={{
           width: '100%',
           border: 'none',
@@ -228,7 +229,10 @@ const MentionInput = ({
           outline: 'none',
           backgroundColor: 'white',
           minHeight: '20px',
-          cursor: 'text'
+          cursor: 'text',
+          direction: 'ltr',
+          textAlign: 'left',
+          unicodeBidi: 'plaintext'
         }}
         dangerouslySetInnerHTML={{ __html: renderMentionText(value) }}
       />
