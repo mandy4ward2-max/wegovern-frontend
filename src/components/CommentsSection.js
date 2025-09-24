@@ -51,7 +51,7 @@ const CommentsSection = ({
   const topLevelComments = comments.filter(comment => !comment.parentId);
 
   return (
-    <div style={{ marginTop: 24 }}>
+  <div style={{ marginTop: 8 }}>
       <h3 style={{ 
         fontSize: 16, 
         fontWeight: 600, 
@@ -89,7 +89,9 @@ const CommentsSection = ({
             You
           </div>
           <div style={{
-            width: 'calc(100% - 100px)'
+            flex: 1,
+            minWidth: 0,
+            maxWidth: '100%'
           }}>
             <MentionInput
               value={newComment}
@@ -139,6 +141,7 @@ const CommentsSection = ({
               onDelete={handleDelete}
               currentUserId={userId}
               allComments={comments}
+              users={users}
             />
           ))
         ) : (

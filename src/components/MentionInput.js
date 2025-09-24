@@ -324,6 +324,8 @@ const MentionInput = ({
         dir="ltr"
         style={{
           width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           border: 'none',
           borderRadius: 16,
           padding: '8px 12px',
@@ -334,6 +336,12 @@ const MentionInput = ({
           cursor: 'text',
           direction: 'ltr',
           textAlign: 'left',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-all',
+          minWidth: 0,
+          display: 'block',
+          overflow: 'hidden',
           unicodeBidi: 'plaintext',
           ...styleOverrides
         }}

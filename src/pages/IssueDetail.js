@@ -590,57 +590,98 @@ function IssueDetail() {
       <div style={{ marginTop: '16px', borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
         <h3 style={{ fontSize: '20px', color: '#333', marginBottom: '16px', textAlign: 'center' }}>Related Content</h3>
         
-        {/* Clickable Statistics Boxes */}
+        {/* Cards with integrated buttons */}
         <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <div 
-            onClick={handleOpenMotionsModal}
-            style={{ 
-              background: '#e3f2fd', 
-              borderRadius: '8px', 
-              padding: '16px', 
-              textAlign: 'center',
-              minWidth: '120px',
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
-              {issue.motionCount || 0}
+          {/* Motions card */}
+          <div style={{ width: 200 }}>
+            <div
+              onClick={handleOpenMotionsModal}
+              style={{
+                background: '#e3f2fd',
+                borderRadius: '8px 8px 0 0',
+                padding: '16px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
+                {issue.motionCount || 0}
+              </div>
+              <div style={{ fontSize: '14px', color: '#1976d2' }}>Motions</div>
             </div>
-            <div style={{ fontSize: '14px', color: '#1976d2' }}>Motions</div>
+            {issue.status !== 'CLOSED' && (
+              <button
+                onClick={() => {/* TODO: Add functionality */}}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#007bff',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0 0 8px 8px',
+                  padding: '10px 18px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                + Add Motion
+              </button>
+            )}
           </div>
-          <div 
-            onClick={handleOpenTasksModal}
-            style={{ 
-              background: '#fff3e0', 
-              borderRadius: '8px', 
-              padding: '16px', 
-              textAlign: 'center',
-              minWidth: '120px',
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f57c00' }}>
-              {typeof issue.taskCount === 'number' ? issue.taskCount : (Array.isArray(issue.allTasks) ? issue.allTasks.length : (issue.Task?.length || 0))}
+
+          {/* Tasks card */}
+          <div style={{ width: 200 }}>
+            <div
+              onClick={handleOpenTasksModal}
+              style={{
+                background: '#fff3e0',
+                borderRadius: '8px 8px 0 0',
+                padding: '16px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f57c00' }}>
+                {typeof issue.taskCount === 'number' ? issue.taskCount : (Array.isArray(issue.allTasks) ? issue.allTasks.length : (issue.Task?.length || 0))}
+              </div>
+              <div style={{ fontSize: '14px', color: '#f57c00' }}>Tasks</div>
             </div>
-            <div style={{ fontSize: '14px', color: '#f57c00' }}>Tasks</div>
+            {issue.status !== 'CLOSED' && (
+              <button
+                onClick={() => {/* TODO: Add functionality */}}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#f57c00',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0 0 8px 8px',
+                  padding: '10px 18px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                + Add Task
+              </button>
+            )}
           </div>
         </div>
 

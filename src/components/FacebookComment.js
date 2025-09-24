@@ -8,7 +8,8 @@ const FacebookComment = ({
   onEdit, 
   onDelete, 
   currentUserId, 
-  allComments = [] 
+  allComments = [],
+  users = []
 }) => {
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -113,7 +114,8 @@ const FacebookComment = ({
         padding: '8px 12px',
         backgroundColor: level % 2 === 0 ? '#f0f2f5' : '#e4e6ea',
         borderRadius: 16,
-        position: 'relative'
+        position: 'relative',
+        minWidth: 0
       }}>
         {/* User Avatar - Simple circle with initials */}
         <div style={{
@@ -142,7 +144,7 @@ const FacebookComment = ({
           })()}
         </div>
         
-        <div style={{ flex: 1 }}>
+  <div style={{ flex: 1, minWidth: 0 }}>
           {/* Comment Header */}
           <div style={{ 
             backgroundColor: level % 2 === 0 ? '#e4e6ea' : '#d0d2d6',
@@ -175,54 +177,60 @@ const FacebookComment = ({
             
             {/* Comment Text */}
             {isEditing ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                <input
-                  type="text"
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    border: 'none',
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    backgroundColor: 'white'
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && handleEdit()}
-                />
-                <button
-                  onClick={handleEdit}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: '#1877f2',
-                    cursor: 'pointer',
-                    fontSize: 12
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditText(comment.text);
-                  }}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: '#65676b',
-                    cursor: 'pointer',
-                    fontSize: 12
-                  }}
-                >
-                  Cancel
-                </button>
+              <div style={{ marginTop: 4, width: '100%' }}>
+                <div style={{ backgroundColor: '#f0f2f5', borderRadius: 16, padding: '8px 12px', maxWidth: '100%', minWidth: 0 }}>
+                  <MentionInput
+                    value={editText}
+                    onChange={(val) => setEditText(val)}
+                    onSubmit={handleEdit}
+                    placeholder="Edit comment..."
+                    users={users}
+                    styleOverrides={{ direction: 'ltr', textAlign: 'left', border: '1px solid #e4e6ea', backgroundColor: '#fff', width: '100%' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }}>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditText(comment.text);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: '#65676b',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    style={{
+                      border: 'none',
+                      backgroundColor: '#1877f2',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '4px 8px',
+                      borderRadius: 12,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ 
                 fontSize: 14, 
                 color: '#050505', 
-                lineHeight: 1.33
+                lineHeight: 1.33,
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word'
               }}>
                 {renderCommentText(comment.text)}
                 {comment.isEdited && (
@@ -306,69 +314,66 @@ const FacebookComment = ({
       
       {/* Reply Box */}
       {showReplyBox && (
-        <div style={{ 
-          marginTop: 8, 
-          marginLeft: 40,
-          display: 'flex', 
-          gap: 8, 
-          alignItems: 'center' 
-        }}>
-          <div style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            backgroundColor: '#1877f2',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            flexShrink: 0
-          }}>
-            You
-          </div>
-          <div style={{ flex: 1 }}>
-            <MentionInput
-              value={replyText}
-              onChange={(val) => setReplyText(val)}
-              onSubmit={handleReply}
-              placeholder="Write a reply..."
-              users={[]}
-              styleOverrides={{ direction: 'ltr', textAlign: 'left' }}
-            />
-          </div>
-          <button
-            onClick={handleReply}
-            style={{
+        <div style={{ marginTop: 8, marginLeft: 40 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
               backgroundColor: '#1877f2',
               color: 'white',
-              border: 'none',
-              borderRadius: 4,
-              padding: '4px 8px',
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            Reply
-          </button>
-          <button
-            onClick={() => {
-              setShowReplyBox(false);
-              setReplyText('');
-            }}
-            style={{
-              backgroundColor: '#e4e6ea',
-              color: '#65676b',
-              border: 'none',
-              borderRadius: 4,
-              padding: '4px 8px',
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            Cancel
-          </button>
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              flexShrink: 0
+            }}>
+              You
+            </div>
+            <div style={{ flex: 1, maxWidth: '100%', minWidth: 0 }}>
+              <MentionInput
+                value={replyText}
+                onChange={(val) => setReplyText(val)}
+                onSubmit={handleReply}
+                placeholder="Write a reply..."
+                users={users}
+                styleOverrides={{ direction: 'ltr', textAlign: 'left', border: '1px solid #e4e6ea', backgroundColor: '#fff' }}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }}>
+            <button
+              onClick={() => {
+                setShowReplyBox(false);
+                setReplyText('');
+              }}
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#65676b',
+                cursor: 'pointer',
+                fontSize: 12
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleReply}
+              style={{
+                backgroundColor: '#1877f2',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                padding: '4px 8px',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Reply
+            </button>
+          </div>
         </div>
       )}
       
@@ -438,6 +443,7 @@ const FacebookComment = ({
           onDelete={onDelete}
           currentUserId={currentUserId}
           allComments={allComments}
+          users={users}
         />
       ))}
     </div>

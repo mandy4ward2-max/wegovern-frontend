@@ -6,12 +6,12 @@ import { Editor, EditorState, RichUtils, convertToRaw } from 'draft-js';
 import 'draft-js/dist/Draft.css';
 import { getUserProfile } from '../api.settings';
 
-function NewMotion() {
+function NewMotion({ inModal = false, onClose, onSubmitted, initialIssueId = '' }) {
   const [attachments, setAttachments] = useState([]);
   const { outstandingMotions, setOutstandingMotions } = useMotions();
   const [title, setTitle] = useState("");
   const [motion, setMotion] = useState("");
-  const [selectedIssueId, setSelectedIssueId] = useState('');
+  const [selectedIssueId, setSelectedIssueId] = useState(initialIssueId ? String(initialIssueId) : '');
   const [issues, setIssues] = useState([]);
   const [user, setUser] = useState(null);
   const [org, setOrg] = useState(null);
@@ -60,6 +60,12 @@ function NewMotion() {
     }
     fetchData();
   }, []);
+  // Ensure modal version always sticks to the originating issue
+  useEffect(() => {
+    if (inModal && initialIssueId) {
+      setSelectedIssueId(String(initialIssueId));
+    }
+  }, [inModal, initialIssueId]);
   const [editorState, setEditorState] = useState(() => EditorState.createEmpty());
   const [showPopup, setShowPopup] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -99,7 +105,7 @@ function NewMotion() {
   }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
   const content = editorState.getCurrentContent();
   const rawContent = convertToRaw(content);
   const html = draftToHtml(rawContent);
@@ -213,7 +219,14 @@ function NewMotion() {
             // Optionally: break or continue
           }
         }
-        navigate('/motions');
+        if (inModal) {
+          if (typeof onSubmitted === 'function') {
+            try { onSubmitted(data); } catch (_) {}
+          }
+          if (typeof onClose === 'function') onClose();
+        } else {
+          navigate('/motions');
+        }
       } else {
         alert([
           'Failed to create motion.',
@@ -261,9 +274,8 @@ function NewMotion() {
     }
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f6fa' }}>
-      <div style={{ position: 'relative', padding: '32px', maxWidth: '600px', width: '100%', background: '#fff', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+  const Inner = (
+      <div style={{ position: 'relative', padding: '32px', maxWidth: '600px', width: '100%', background: '#fff', borderRadius: '12px', boxShadow: inModal ? '0 4px 24px rgba(0,0,0,0.18)' : '0 4px 24px rgba(0,0,0,0.12)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {/* Attachment icon (paper clip) */}
         <button onClick={() => setShowPopup(true)} style={{ position: 'absolute', top: 24, right: 24, background: 'none', border: 'none', cursor: 'pointer' }} title="Add Attachment">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -281,23 +293,34 @@ function NewMotion() {
             <input type="text" value={motion} onChange={e => setMotion(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '4px' }} />
           </div>
           <div style={{ marginBottom: '16px', width: '100%' }}>
-            <label>Related Issue (optional):</label>
-            <select 
-              value={selectedIssueId} 
-              onChange={e => setSelectedIssueId(e.target.value)} 
-              style={{ width: '100%', padding: '8px', marginTop: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-            >
-              <option value="">Select an issue (optional)</option>
-              {issues.map(issue => (
-                <option key={issue.id} value={issue.id}>
-                  {issue.title} - {issue.status} ({issue.priority})
-                </option>
-              ))}
-            </select>
-            {issues.length === 0 && (
-              <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
-                No issues available for this organization.
-              </small>
+            <label>Related Issue{inModal ? '' : ' (optional)'}:</label>
+            {inModal && initialIssueId ? (
+              <div style={{ width: '100%', padding: '8px', marginTop: '4px', border: '1px solid #ccc', borderRadius: '4px', background: '#f7f7f7' }}>
+                {(() => {
+                  const found = issues.find(i => String(i.id) === String(initialIssueId));
+                  return found ? `${found.title} - ${found.status} (${found.priority})` : `Issue #${initialIssueId}`;
+                })()}
+              </div>
+            ) : (
+              <>
+                <select 
+                  value={selectedIssueId} 
+                  onChange={e => setSelectedIssueId(e.target.value)} 
+                  style={{ width: '100%', padding: '8px', marginTop: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
+                >
+                  <option value="">Select an issue (optional)</option>
+                  {issues.map(issue => (
+                    <option key={issue.id} value={issue.id}>
+                      {issue.title} - {issue.status} ({issue.priority})
+                    </option>
+                  ))}
+                </select>
+                {issues.length === 0 && (
+                  <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
+                    No issues available for this organization.
+                  </small>
+                )}
+              </>
             )}
           </div>
           <div style={{ marginBottom: '16px', width: '100%' }}>
@@ -407,11 +430,20 @@ function NewMotion() {
         {showCancelConfirm && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
             <div style={{ background: '#fff', borderRadius: '10px', padding: '32px 24px 24px 24px', minWidth: '320px', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', textAlign: 'center' }}>
-              <h3 style={{ marginTop: 0, marginBottom: '18px', color: '#dc3545' }}>Cancel Motion?</h3>
-              <p style={{ marginBottom: '24px' }}>Are you sure you want to cancel? All unsaved changes will be lost.</p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '18px' }}>
-                <button onClick={() => { setShowCancelConfirm(false); navigate('/motions'); }} style={{ padding: '10px 24px', backgroundColor: '#dc3545', color: '#fff', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Yes</button>
-                <button onClick={() => setShowCancelConfirm(false)} style={{ padding: '10px 24px', backgroundColor: '#ccc', color: '#333', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>No</button>
+              <h3 style={{ marginTop: 0, marginBottom: '18px', color: '#dc3545' }}>{inModal ? 'Close Motion?' : 'Cancel Motion?'}</h3>
+              <p style={{ marginBottom: '24px' }}>{inModal ? 'Are you sure you want to close without posting? Your changes will be lost.' : 'Are you sure you want to cancel? All unsaved changes will be lost.'}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', flexWrap: 'wrap' }}>
+                {inModal ? (
+                  <>
+                    <button onClick={() => { setShowCancelConfirm(false); if (typeof onClose === 'function') onClose(); }} style={{ padding: '10px 24px', backgroundColor: '#dc3545', color: '#fff', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Close Without Posting</button>
+                    <button onClick={() => setShowCancelConfirm(false)} style={{ padding: '10px 24px', backgroundColor: '#ccc', color: '#333', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Back</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setShowCancelConfirm(false); navigate('/motions'); }} style={{ padding: '10px 24px', backgroundColor: '#dc3545', color: '#fff', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>Yes</button>
+                    <button onClick={() => setShowCancelConfirm(false)} style={{ padding: '10px 24px', backgroundColor: '#ccc', color: '#333', border:'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '16px' }}>No</button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -495,6 +527,15 @@ function NewMotion() {
           </div>
         )}
       </div>
+  );
+
+  if (inModal) {
+    return Inner;
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f6fa' }}>
+      {Inner}
     </div>
   );
 }
