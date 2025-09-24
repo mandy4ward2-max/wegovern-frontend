@@ -90,6 +90,8 @@ const CommentsSection = ({
               onSubmit={handleAddComment}
               placeholder="Write a comment..."
               users={users}
+              // Explicitly force LTR for safety across browsers
+              styleOverrides={{ direction: 'ltr', textAlign: 'left' }}
             />
           </div>
         </div>

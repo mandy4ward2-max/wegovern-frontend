@@ -7,7 +7,8 @@ const MentionInput = ({
   onSubmit,
   placeholder = 'Write a comment...',
   users = [],
-  disabled = false
+  disabled = false,
+  styleOverrides = {}
 }) => {
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionSearchQuery, setMentionSearchQuery] = useState('');
@@ -17,6 +18,8 @@ const MentionInput = ({
   const [taggedUsers, setTaggedUsers] = useState([]);
   
   const inputRef = useRef(null);
+  // Track whether the latest value change came from user typing vs programmatic updates
+  const lastChangeSource = useRef('init'); // 'user' | 'mention' | 'external' | 'init'
   const mentionPickerRef = useRef(null);
 
   // Parse mentions from text (format: @[UserName](userId))
@@ -60,6 +63,8 @@ const MentionInput = ({
   };
 
   const handleInputChange = (e) => {
+    // Mark this change as coming from the user so we don't overwrite caret position
+    lastChangeSource.current = 'user';
     const htmlContent = e.target.innerHTML;
     const textContent = e.target.textContent || '';
     
@@ -163,7 +168,9 @@ const MentionInput = ({
     const newValue = beforeMention + mentionText + afterMention;
     const newCursorPosition = mentionStartIndex + mentionText.length;
     
-    onChange(newValue, getTaggedUserIds(newValue));
+  // Mark as programmatic so we can safely re-render formatted content
+  lastChangeSource.current = 'mention';
+  onChange(newValue, getTaggedUserIds(newValue));
     
     setShowMentionPicker(false);
     setMentionStartIndex(-1);
@@ -209,6 +216,18 @@ const MentionInput = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Keep the DOM in sync when value changes externally (e.g., cleared after submit or mention inserted)
+  useEffect(() => {
+    if (!inputRef.current) return;
+    // For normal typing, do not reset innerHTML to preserve caret and typing direction
+    const shouldSync = lastChangeSource.current !== 'user' || value === '';
+    if (!shouldSync) return;
+    const desired = renderMentionText(value);
+    if (inputRef.current.innerHTML !== desired) {
+      inputRef.current.innerHTML = desired;
+    }
+  }, [value]);
+
   return (
     <div style={{ position: 'relative', flex: 1 }}>
       <div
@@ -232,9 +251,9 @@ const MentionInput = ({
           cursor: 'text',
           direction: 'ltr',
           textAlign: 'left',
-          unicodeBidi: 'plaintext'
+          unicodeBidi: 'plaintext',
+          ...styleOverrides
         }}
-        dangerouslySetInnerHTML={{ __html: renderMentionText(value) }}
       />
       
       <MentionPicker
