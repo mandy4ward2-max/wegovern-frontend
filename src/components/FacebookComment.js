@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import MentionInput from './MentionInput';
 
 const FacebookComment = ({ 
   comment, 
@@ -20,7 +21,14 @@ const FacebookComment = ({
 
   const handleReply = async () => {
     if (replyText.trim()) {
-      await onReply(comment.id, replyText);
+      // Extract tagged user ids from markup in replyText
+      const tagRegex = /@\[[^\]]+\]\(([^)]+)\)/g;
+      const ids = [];
+      let m;
+      while ((m = tagRegex.exec(replyText)) !== null) {
+        if (m[1]) ids.push(m[1]);
+      }
+      await onReply(comment.id, replyText, ids);
       setReplyText('');
       setShowReplyBox(false);
     }
@@ -320,21 +328,16 @@ const FacebookComment = ({
           }}>
             You
           </div>
-          <input
-            type="text"
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder="Write a reply..."
-            style={{
-              flex: 1,
-              border: '1px solid #ccd0d5',
-              borderRadius: 16,
-              padding: '6px 12px',
-              fontSize: 14,
-              outline: 'none'
-            }}
-            onKeyPress={(e) => e.key === 'Enter' && handleReply()}
-          />
+          <div style={{ flex: 1 }}>
+            <MentionInput
+              value={replyText}
+              onChange={(val) => setReplyText(val)}
+              onSubmit={handleReply}
+              placeholder="Write a reply..."
+              users={[]}
+              styleOverrides={{ direction: 'ltr', textAlign: 'left' }}
+            />
+          </div>
           <button
             onClick={handleReply}
             style={{

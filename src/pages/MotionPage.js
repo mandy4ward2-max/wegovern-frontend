@@ -142,10 +142,10 @@ function MotionPage() {
     await fetchComments();
   };
 
-  const handleReplyToComment = async (parentId, text) => {
+  const handleReplyToComment = async (parentId, text, taggedUserIds = []) => {
     if (!text.trim()) return;
     // addComment expects: (text, { motionId | issueId | taskId }, parentId)
-    await addComment(text, { motionId: Number(id) }, parentId); // pass parentId for nesting
+    await addComment(text, { motionId: Number(id) }, parentId, taggedUserIds); // pass parentId for nesting
     // Broadcast to WebSocket
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });

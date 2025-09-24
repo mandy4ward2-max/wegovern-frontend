@@ -29,7 +29,14 @@ const CommentsSection = ({
   };
 
   const handleReply = async (parentId, text) => {
-    await onReplyToComment(parentId, text);
+    // Extract mentions from reply text as IDs for backend tagging
+    const tagRegex = /@\[[^\]]+\]\(([^)]+)\)/g;
+    const ids = [];
+    let m;
+    while ((m = tagRegex.exec(text)) !== null) {
+      if (m[1]) ids.push(m[1]);
+    }
+    await onReplyToComment(parentId, text, ids);
   };
 
   const handleEdit = async (commentId, text) => {
