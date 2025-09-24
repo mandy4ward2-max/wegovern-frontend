@@ -68,7 +68,7 @@ const MentionInput = ({
     const htmlContent = e.target.innerHTML;
     const textContent = e.target.textContent || '';
     
-    // Convert HTML back to our mention format
+  // Convert HTML back to our mention format
     let newValue = htmlContent;
     
     // Replace mention spans back to markup format
@@ -76,14 +76,30 @@ const MentionInput = ({
     
     // Remove any other HTML tags
     newValue = newValue.replace(/<[^>]*>/g, '');
+    // Decode common HTML entities that contentEditable may emit
+    newValue = newValue
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
     
-    // Get cursor position (simplified for now)
-    const selection = window.getSelection();
-    const cursorPos = selection.rangeCount > 0 ? selection.getRangeAt(0).startOffset : 0;
+    // Get absolute cursor position within the entire contentEditable
+    const getCaretCharacterOffsetWithin = (element) => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return 0;
+      const range = sel.getRangeAt(0);
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(element);
+      preRange.setEnd(range.endContainer, range.endOffset);
+      return preRange.toString().length;
+    };
+    const cursorPos = getCaretCharacterOffsetWithin(inputRef.current);
     setCursorPosition(cursorPos);
     
     // Check if user typed @ to trigger mention picker
-    const textBeforeCursor = textContent.substring(0, cursorPos);
+  const textBeforeCursor = textContent.substring(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
     
     if (lastAtIndex !== -1) {
@@ -153,45 +169,112 @@ const MentionInput = ({
 
   const handleMentionSelect = (user) => {
     if (mentionStartIndex === -1) return;
-    
-    const beforeMention = value.substring(0, mentionStartIndex);
-    const afterMention = value.substring(cursorPosition);
-    
-    let mentionText;
-    if (user.id === 'everyone') {
-      mentionText = '@[Everyone](everyone)';
-    } else {
-      const displayName = user.fullName || user.email?.split('@')[0] || 'User';
-      mentionText = `@[${displayName}](${user.id})`;
+
+    const displayName = user.id === 'everyone'
+      ? 'Everyone'
+      : (user.fullName || user.email?.split('@')[0] || 'User');
+    const markup = user.id === 'everyone'
+      ? '@[Everyone](everyone)'
+      : `@[${displayName}](${user.id})`;
+
+    // Replace the typed @query (from mentionStartIndex to cursorPosition) in the DOM with a non-editable span
+    const el = inputRef.current;
+    if (!el) return;
+
+    // Helper to locate a DOM position by absolute text offset
+    const locate = (element, target) => {
+      let node = element.firstChild;
+      let count = 0;
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const len = node.textContent.length;
+          if (count + len >= target) {
+            return { node, offset: target - count };
+          }
+          count += len;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const len = node.textContent.length;
+          if (count + len >= target) {
+            // Descend into element
+            return locate(node, target - count);
+          }
+          count += len;
+        }
+        node = node.nextSibling;
+      }
+      // Fallback to end
+      return { node: element, offset: element.childNodes.length };
+    };
+
+    const startPos = locate(el, mentionStartIndex);
+    const endPos = locate(el, cursorPosition);
+    const range = document.createRange();
+    try {
+      range.setStart(startPos.node, startPos.offset);
+      range.setEnd(endPos.node, endPos.offset);
+    } catch (_) {
+      // If invalid, bail out gracefully
+      return;
     }
-    
-    const newValue = beforeMention + mentionText + afterMention;
-    const newCursorPosition = mentionStartIndex + mentionText.length;
-    
-  // Mark as programmatic so we can safely re-render formatted content
-  lastChangeSource.current = 'mention';
-  onChange(newValue, getTaggedUserIds(newValue));
-    
+
+    // Create the mention span
+    const span = document.createElement('span');
+    span.className = 'mention-tag';
+    span.setAttribute('contenteditable', 'false');
+    span.setAttribute('data-mention-id', user.id);
+    span.style.color = '#1877f2';
+    span.style.fontWeight = '600';
+    span.style.backgroundColor = 'rgba(24, 119, 242, 0.1)';
+    span.style.padding = '2px 6px';
+    span.style.borderRadius = '4px';
+    span.style.margin = '0 1px';
+    span.style.display = 'inline-block';
+    span.style.cursor = 'pointer';
+    span.textContent = `@${displayName}`;
+
+    // Replace range with the mention span and a trailing space
+    range.deleteContents();
+    range.insertNode(span);
+    const space = document.createTextNode(' ');
+    span.after(space);
+
+    // Update value from DOM by converting spans back to markup
+    const htmlContent = el.innerHTML;
+    let newValue = htmlContent.replace(/<span[^>]*class="mention-tag"[^>]*data-mention-id="([^"]*)"[^>]*>@([^<]*)<\/span>/g, '@[$2]($1)');
+    newValue = newValue.replace(/<[^>]*>/g, '');
+    // Decode common HTML entities
+    newValue = newValue
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    lastChangeSource.current = 'mention';
+    onChange(newValue, getTaggedUserIds(newValue));
+
+    // Move caret after the inserted space
+    const placeCaret = () => {
+      const sel = window.getSelection();
+      if (!sel) return;
+      sel.removeAllRanges();
+      const afterRange = document.createRange();
+      afterRange.setStart(space, 1);
+      afterRange.collapse(true);
+      sel.addRange(afterRange);
+      // Ensure focus remains
+      if (document.activeElement !== el) el.focus();
+    };
+    // Try twice to survive re-render
+    requestAnimationFrame(() => {
+      placeCaret();
+      requestAnimationFrame(placeCaret);
+    });
+
     setShowMentionPicker(false);
     setMentionStartIndex(-1);
     setMentionSearchQuery('');
-    
-    // Focus back to input and update content
-    setTimeout(() => {
-      inputRef.current.focus();
-      inputRef.current.innerHTML = renderMentionText(newValue);
-      
-      // Set cursor position after the mention
-      const selection = window.getSelection();
-      const range = document.createRange();
-      const textNode = inputRef.current.lastChild;
-      if (textNode) {
-        range.setStartAfter(textNode);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-    }, 0);
   };
 
 
