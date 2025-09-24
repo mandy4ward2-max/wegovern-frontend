@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getIssueById, updateIssue, getUsers, getIssueComments, addIssueComment, editComment, deleteComment, getMotions, getTasks } from '../api';
+import { getIssueById, updateIssue, getUsers, getIssueComments, addIssueComment, editComment, deleteComment, getMotions, getTasks, closeIssue } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 import CommentsSection from '../components/CommentsSection';
 
@@ -16,6 +16,9 @@ function IssueDetail() {
   const [showTasksModal, setShowTasksModal] = useState(false);
   const [relatedMotions, setRelatedMotions] = useState([]);
   const [relatedTasks, setRelatedTasks] = useState([]);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closeResolution, setCloseResolution] = useState('');
+  const [closing, setClosing] = useState(false);
   const { socket } = useWebSocket();
 
   // Comments state
@@ -50,6 +53,7 @@ function IssueDetail() {
         ]);
 
         if (issueData && !issueData.error) {
+          console.log('IssueDetail fetched issue:', issueData);
           setIssue(issueData);
           setEditForm({
             title: issueData.title,
@@ -121,6 +125,13 @@ function IssueDetail() {
     };
   }, [socket, issue]);
 
+  // If the issue becomes CLOSED, ensure we exit edit mode
+  useEffect(() => {
+    if (issue?.status === 'CLOSED' && editing) {
+      setEditing(false);
+    }
+  }, [issue?.status]);
+
   // Handle save changes
   const handleSave = async () => {
     try {
@@ -148,18 +159,20 @@ function IssueDetail() {
 
   // Handle tasks modal
   const handleOpenTasksModal = async () => {
-    // Use the tasks already loaded with the issue
-    setRelatedTasks(issue.Task || []);
+    // Use the combined tasks provided by backend (direct + via motion), fallback to direct Task
+    const combined = Array.isArray(issue.allTasks) ? issue.allTasks : (issue.Task || []);
+    setRelatedTasks(combined);
     setShowTasksModal(true);
   };
 
   // Handle motions and tasks navigation
   const handleMotionClick = (motionId, motionStatus) => {
-    if (motionStatus === 'passed' || motionStatus === 'defeated') {
-      navigate(`/completed-motions/${motionId}`);
-    } else {
-      navigate(`/motions/${motionId}`);
-    }
+    const status = (motionStatus || '').toLowerCase();
+    const url = (status === 'passed' || status === 'defeated')
+      ? `/completed-motion/${motionId}`
+      : `/motion/${motionId}`;
+    // Open in a new tab
+    window.open(url, '_blank', 'noopener');
     setShowMotionsModal(false);
   };
 
@@ -298,7 +311,7 @@ function IssueDetail() {
         </button>
         
         <div style={{ display: 'flex', gap: '12px' }}>
-          {!editing ? (
+          {issue.status !== 'CLOSED' && (!editing ? (
             <button
               onClick={() => setEditing(true)}
               style={{
@@ -344,12 +357,31 @@ function IssueDetail() {
                 Save Changes
               </button>
             </>
+          ))}
+          {!editing && issue.status !== 'CLOSED' && (
+            <button
+              onClick={() => {
+                setCloseResolution('');
+                setShowCloseModal(true);
+              }}
+              style={{
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '10px 20px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              Close Issue
+            </button>
           )}
         </div>
       </div>
 
-      {/* Issue Content */}
-      {!editing ? (
+      {/* Issue Content (editing disabled if CLOSED) */}
+      {!editing || issue.status === 'CLOSED' ? (
         <>
           {/* Issue Title and Badges */}
           <div style={{ marginBottom: '24px' }}>
@@ -387,6 +419,11 @@ function IssueDetail() {
               {issue.assignedTo && (
                 <div>Assigned to <strong>{issue.assignedTo.firstName} {issue.assignedTo.lastName}</strong></div>
               )}
+              {issue.status === 'CLOSED' && (
+                <div>
+                  Closed by <strong>{issue.closedBy?.firstName} {issue.closedBy?.lastName}</strong> on {issue.closedAt ? formatDate(issue.closedAt) : '—'}
+                </div>
+              )}
               {issue.updatedAt !== issue.createdAt && (
                 <div>Last updated {formatDate(issue.updatedAt)}</div>
               )}
@@ -411,10 +448,29 @@ function IssueDetail() {
               </div>
             </div>
           )}
+
+          {/* Resolution */}
+          {issue.status === 'CLOSED' && issue.resolution && (
+            <div style={{ marginBottom: '32px' }}>
+              <h3 style={{ fontSize: '18px', color: '#333', marginBottom: '12px' }}>Resolution</h3>
+              <div style={{ 
+                background: '#f8f9fa', 
+                border: '1px solid #e9ecef', 
+                borderRadius: '6px', 
+                padding: '20px',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: '#495057',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {issue.resolution}
+              </div>
+            </div>
+          )}
         </>
       ) : (
-        /* Edit Form */
-        <div>
+  /* Edit Form */
+  <div>
           {/* Title */}
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#555' }}>
@@ -531,11 +587,11 @@ function IssueDetail() {
       )}
 
       {/* Related Content */}
-      <div style={{ marginTop: '40px', borderTop: '2px solid #f8f9fa', paddingTop: '32px' }}>
-        <h3 style={{ fontSize: '20px', color: '#333', marginBottom: '24px' }}>Related Content</h3>
+      <div style={{ marginTop: '16px', borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
+        <h3 style={{ fontSize: '20px', color: '#333', marginBottom: '16px', textAlign: 'center' }}>Related Content</h3>
         
         {/* Clickable Statistics Boxes */}
-        <div style={{ display: 'flex', gap: '32px', marginBottom: '32px' }}>
+        <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <div 
             onClick={handleOpenMotionsModal}
             style={{ 
@@ -582,30 +638,32 @@ function IssueDetail() {
             }}
           >
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f57c00' }}>
-              {issue.taskCount || 0}
+              {typeof issue.taskCount === 'number' ? issue.taskCount : (Array.isArray(issue.allTasks) ? issue.allTasks.length : (issue.Task?.length || 0))}
             </div>
             <div style={{ fontSize: '14px', color: '#f57c00' }}>Tasks</div>
           </div>
         </div>
 
         {/* Comments Section */}
-        <div style={{ marginTop: '40px', borderTop: '1px solid #e9ecef', paddingTop: '32px' }}>
-          {commentsLoading ? (
-            <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
-              Loading comments...
-            </div>
-          ) : (
-            <CommentsSection
-              comments={comments}
-              motionId={null}
-              userId={currentUser?.id}
-              onAddComment={handleAddComment}
-              onEditComment={handleEditComment}
-              onDeleteComment={handleDeleteComment}
-              onReplyToComment={handleReplyToComment}
-            />
-          )}
-        </div>
+        {issue.status !== 'CLOSED' && (
+          <div style={{ marginTop: '40px', borderTop: '1px solid #e9ecef', paddingTop: '32px' }}>
+            {commentsLoading ? (
+              <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                Loading comments...
+              </div>
+            ) : (
+              <CommentsSection
+                comments={comments}
+                motionId={null}
+                userId={currentUser?.id}
+                onAddComment={handleAddComment}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
+                onReplyToComment={handleReplyToComment}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Motions Modal */}
@@ -758,6 +816,83 @@ function IssueDetail() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close Issue Modal */}
+      {showCloseModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1100
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '520px',
+            width: '90%'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>Close Issue</h3>
+              <button 
+                onClick={() => setShowCloseModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginBottom: '12px', color: '#555' }}>
+              Please provide a brief resolution summary. Are you sure you want to close this issue?
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Resolution</label>
+              <textarea
+                value={closeResolution}
+                onChange={(e) => setCloseResolution(e.target.value)}
+                placeholder="What was the outcome or reason for closing?"
+                style={{ width: '100%', minHeight: 120, padding: 12, border: '1px solid #ddd', borderRadius: 6 }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                onClick={() => setShowCloseModal(false)}
+                style={{ backgroundColor: '#6c757d', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 16px', cursor: 'pointer' }}
+              >
+                No, Keep Open
+              </button>
+              <button
+                disabled={closing}
+                onClick={async () => {
+                  try {
+                    setClosing(true);
+                    // Simplify - just send resolution text
+                    const result = await closeIssue(id, { resolution: closeResolution.trim() });
+                    if (!result || result.error) {
+                      alert('Failed to close issue' + (result?.message ? ': ' + result.message : ''));
+                    } else {
+                      setIssue(result);
+                      setShowCloseModal(false);
+                    }
+                  } catch (e) {
+                    alert('Failed to close issue');
+                  } finally {
+                    setClosing(false);
+                  }
+                }}
+                style={{ backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 16px', cursor: 'pointer', opacity: closing ? 0.7 : 1 }}
+              >
+                {closing ? 'Closing…' : 'Yes, Close Issue'}
+              </button>
             </div>
           </div>
         </div>

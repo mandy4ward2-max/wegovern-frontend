@@ -305,6 +305,27 @@ export async function updateIssue(id, updates) {
   }
 }
 
+export async function closeIssue(id, dataOrResolution) {
+  try {
+    const token = localStorage.getItem('token');
+    // Simplify - just send resolution or simple payload
+    const payload = typeof dataOrResolution === 'string'
+      ? { resolution: dataOrResolution }
+      : dataOrResolution;
+    const res = await fetch(`${API_BASE_URL}/issues/${id}/close`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (e) {
+    return { error: true, message: e.message };
+  }
+}
+
 export async function deleteIssue(id) {
   try {
     const token = localStorage.getItem('token');

@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { getTasks, getTaskComments, addTaskComment, editComment, deleteComment } from '../api';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getTasks, getTaskComments, addTaskComment, editComment, deleteComment, getIssues, getIssueById, getMotionById } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 import CommentsSection from '../components/CommentsSection';
+import { getOrganization } from '../api.settings';
 
 function TasksPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [draggedTask, setDraggedTask] = useState(null);
   const { socket } = useWebSocket();
+  // Filter state
+  const [filter, setFilter] = useState('my'); // 'my' | 'all' | `issue:${id}`
+  const [issues, setIssues] = useState([]);
+  const [loadingIssues, setLoadingIssues] = useState(false);
   
   // Modal state for task completion
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -28,6 +36,25 @@ function TasksPage() {
     }
   }, []);
 
+  // Initialize filter from URL search params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlFilter = params.get('filter');
+    if (urlFilter && (urlFilter === 'my' || urlFilter === 'all' || urlFilter.startsWith('issue:'))) {
+      setFilter(urlFilter);
+    }
+  }, [location.search]);
+
+  // Keep URL in sync when filter changes (avoid loops by checking)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const current = params.get('filter');
+    if (filter && filter !== current) {
+      params.set('filter', filter);
+      navigate({ pathname: '/tasks', search: params.toString() }, { replace: true });
+    }
+  }, [filter]);
+
   // Fetch all tasks from backend
   useEffect(() => {
     async function fetchTasks() {
@@ -40,6 +67,29 @@ function TasksPage() {
       }
     }
     fetchTasks();
+  }, []);
+
+  // Fetch issues for current organization for filter dropdown
+  useEffect(() => {
+    async function loadIssues() {
+      try {
+        setLoadingIssues(true);
+        const org = await getOrganization();
+        const orgId = org?.id || org?.orgId || null;
+        if (!orgId) {
+          setIssues([]);
+          return;
+        }
+        const data = await getIssues(orgId);
+        setIssues(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error('Error loading issues for filter:', e);
+        setIssues([]);
+      } finally {
+        setLoadingIssues(false);
+      }
+    }
+    loadIssues();
   }, []);
 
   // Listen for real-time task updates via WebSocket
@@ -77,10 +127,30 @@ function TasksPage() {
     };
   }, [socket]);
 
+  // Apply top-level filter (my/all/issue)
+  const applyTopFilter = (list) => {
+    if (!Array.isArray(list)) return [];
+    if (filter === 'all') return list;
+    if (filter === 'my') {
+      return currentUser ? list.filter(t => String(t.userId) === String(currentUser.id)) : [];
+    }
+    if (filter.startsWith('issue:')) {
+      const issueId = filter.split(':')[1];
+      return list.filter(t => {
+        const direct = t.issueId != null && String(t.issueId) === String(issueId);
+        const viaMotion = t.motion && t.motion.issueId != null && String(t.motion.issueId) === String(issueId);
+        return direct || viaMotion;
+      });
+    }
+    return list;
+  };
+
+  const filteredTasks = applyTopFilter(tasks);
+
   // Filter tasks by status (excluding UNAPPROVED)
-  const notStartedTasks = tasks.filter(task => task.status === 'NOT_STARTED');
-  const inProgressTasks = tasks.filter(task => task.status === 'IN_PROGRESS');
-  const completedTasks = tasks.filter(task => task.status === 'COMPLETED');
+  const notStartedTasks = filteredTasks.filter(task => task.status === 'NOT_STARTED');
+  const inProgressTasks = filteredTasks.filter(task => task.status === 'IN_PROGRESS');
+  const completedTasks = filteredTasks.filter(task => task.status === 'COMPLETED');
 
   // Get color based on due date
   const getDueDateColor = (dueDate) => {
@@ -286,6 +356,35 @@ function TasksPage() {
       console.error('Error fetching task comments:', error);
       setTaskComments([]);
     }
+
+    // Fetch related Issue and Motion titles if needed
+    try {
+      const fetches = [];
+      if (task?.issueId && !task?.issueTitle) {
+        fetches.push(
+          getIssueById(task.issueId)
+            .then(data => ({ issueTitle: data?.title || data?.name || `Issue #${task.issueId}` }))
+            .catch(() => ({}))
+        );
+      }
+      if (task?.motionId && !task?.motionTitle) {
+        fetches.push(
+          getMotionById(task.motionId)
+            .then(data => ({ motionTitle: data?.title || data?.motion || `Motion #${task.motionId}` }))
+            .catch(() => ({}))
+        );
+      }
+      if (fetches.length) {
+        const results = await Promise.all(fetches);
+        results.forEach(update => {
+          if (update && Object.keys(update).length) {
+            setSelectedTask(prev => prev ? { ...prev, ...update } : prev);
+          }
+        });
+      }
+    } catch (e) {
+      // Non-fatal
+    }
   };
 
   // Handle closing task detail modal
@@ -469,11 +568,7 @@ function TasksPage() {
           </div>
         )}
         
-        {task.completeComment && task.status === 'COMPLETED' && (
-          <div style={{ fontSize: '14px', color: '#28a745', marginTop: '12px', fontStyle: 'italic' }}>
-            "{task.completeComment}"
-          </div>
-        )}
+        {/* Completion comment intentionally hidden on task cards */}
         
         {/* Indicator removed per request */}
       </div>
@@ -520,7 +615,21 @@ function TasksPage() {
 
   return (
     <div style={{ maxWidth: 2400, margin: '40px auto', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', padding: 64 }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '48px', fontSize: '32px' }}>Task Board</h2>
+      <h2 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '32px' }}>Task Board</h2>
+      {/* Filter Dropdown */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd', minWidth: 280 }}
+        >
+          <option value="my">My Tasks</option>
+          <option value="all">All Tasks</option>
+          {issues.map(iss => (
+            <option key={iss.id} value={`issue:${iss.id}`}>Issue: {iss.title}</option>
+          ))}
+        </select>
+      </div>
       
       <div style={{ display: 'flex', gap: '32px' }}>
         <KanbanColumn 
@@ -730,6 +839,14 @@ function TasksPage() {
                     <strong style={{ color: '#666', fontSize: '14px' }}>Related Motion:</strong>
                     <div style={{ marginLeft: '8px', display: 'inline', fontStyle: 'italic' }}>
                       {selectedTask.motionTitle}
+                    </div>
+                  </div>
+                )}
+                {selectedTask.issueId && (
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '14px' }}>Related Issue:</strong>
+                    <div style={{ marginLeft: '8px', display: 'inline', fontStyle: 'italic' }}>
+                      {selectedTask.issueTitle || `Issue #${selectedTask.issueId}`}
                     </div>
                   </div>
                 )}

@@ -183,10 +183,12 @@ function NewMotion() {
               },
               body: JSON.stringify({
                 motionId: data.id,
+                issueId: selectedIssueId ? Number(selectedIssueId) : null,
                 action: task.action,
                 person: orgUsers.find(u => String(u.id) === String(task.person))?.fullName || '',
                 userId: Number(task.person),
-                due: task.due ? new Date(task.due).toISOString() : undefined
+                due: task.due ? new Date(task.due).toISOString() : undefined,
+                status: 'NOT_STARTED'
               })
             });
           } catch (err) {
