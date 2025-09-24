@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getTasks, getTaskComments, addTaskComment, editComment, deleteComment, getIssues, getIssueById, getMotionById } from '../api';
+import { getTasks, getTaskComments, addTaskComment, editComment, deleteComment, getIssues, getIssueById, getMotionById, getUsers } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 import CommentsSection from '../components/CommentsSection';
 import { getOrganization } from '../api.settings';
@@ -27,6 +27,7 @@ function TasksPage() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [taskComments, setTaskComments] = useState([]);
+  const [users, setUsers] = useState([]);
 
   // Get current user from localStorage
   useEffect(() => {
@@ -55,18 +56,23 @@ function TasksPage() {
     }
   }, [filter]);
 
-  // Fetch all tasks from backend
+  // Fetch all tasks and users from backend
   useEffect(() => {
-    async function fetchTasks() {
+    async function fetchData() {
       try {
-        const allTasks = await getTasks('all'); // Fetch all tasks
+        const [allTasks, usersData] = await Promise.all([
+          getTasks('all'), // Fetch all tasks
+          getUsers()
+        ]);
         setTasks(Array.isArray(allTasks) ? allTasks : []);
+        setUsers(usersData || []);
       } catch (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching data:', error);
         setTasks([]);
+        setUsers([]);
       }
     }
-    fetchTasks();
+    fetchData();
   }, []);
 
   // Fetch issues for current organization for filter dropdown
@@ -415,11 +421,11 @@ function TasksPage() {
     editable: currentUser?.id === c?.userId
   });
 
-  const handleAddTaskComment = async (text) => {
+  const handleAddTaskComment = async (text, taggedUserIds = []) => {
     if (!selectedTask) return;
     
     try {
-      const comment = await addTaskComment(selectedTask.id, text);
+      const comment = await addTaskComment(selectedTask.id, text, null, taggedUserIds);
       if (comment.error) {
         alert('Failed to add comment: ' + comment.message);
       } else {
@@ -878,6 +884,7 @@ function TasksPage() {
                 onEditComment={handleEditTaskComment}
                 onDeleteComment={handleDeleteTaskComment}
                 onReplyToComment={handleReplyToTaskComment}
+                users={users}
               />
             </div>
           </div>

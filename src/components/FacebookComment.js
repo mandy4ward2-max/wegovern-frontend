@@ -54,6 +54,48 @@ const FacebookComment = ({
     return commentDate.toLocaleDateString();
   };
 
+  const renderCommentText = (text) => {
+    if (!text) return text;
+    
+    // Replace mention markup @[Name](id) with styled mentions
+    const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      // Add text before mention
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      // Add styled mention
+      parts.push(
+        <span
+          key={match.index}
+          style={{
+            color: '#1877f2',
+            fontWeight: 600,
+            backgroundColor: 'rgba(24, 119, 242, 0.1)',
+            padding: '1px 4px',
+            borderRadius: 4
+          }}
+        >
+          @{match[1]}
+        </span>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 1 ? parts : text;
+  };
+
   return (
     <div style={{ marginLeft: level * 20, marginBottom: 12 }}>
       <div style={{ 
@@ -174,7 +216,7 @@ const FacebookComment = ({
                 color: '#050505', 
                 lineHeight: 1.33
               }}>
-                {comment.text}
+                {renderCommentText(comment.text)}
                 {comment.isEdited && (
                   <span style={{ 
                     fontSize: 12, 

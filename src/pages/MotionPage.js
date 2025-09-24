@@ -2,25 +2,37 @@ import React, { useState, useEffect, useCallback } from 'react';
 import FilePreview from '../components/FilePreview';
 import CommentsSection from '../components/CommentsSection';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMotionById, getComments, addComment, editComment, deleteComment, getVoteTally, createVote, getVotesByMotion } from '../api';
+import { getMotionById, getComments, addComment, editComment, deleteComment, getVoteTally, createVote, getVotesByMotion, getUsers } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 
 function MotionPage() {
   // useParams must be the very first line to ensure 'id' is initialized before any use
   const { id } = useParams();
 
-  // Fetch motion on mount or id change
+  // Fetch motion and users on mount or id change
   useEffect(() => {
+    console.log('🔍 MotionPage useEffect: Running with id:', id);
     if (!id) return;
-    getMotionById(id).then(m => {
-      if (m) {
-        setMotion(m);
-        setTasks(Array.isArray(m.tasks) ? m.tasks : []);
+    
+    const fetchData = async () => {
+      console.log('🔍 MotionPage fetchData: About to call getUsers');
+      const [motionData, usersData] = await Promise.all([
+        getMotionById(id),
+        getUsers('all')
+      ]);
+      
+      if (motionData) {
+        setMotion(motionData);
+        setTasks(Array.isArray(motionData.tasks) ? motionData.tasks : []);
       } else {
         setMotion(null);
         setTasks([]);
       }
-    });
+      
+      setUsers(usersData || []);
+    };
+    
+    fetchData();
   }, [id]);
 
   // Fetch comments on mount or id change
@@ -38,6 +50,7 @@ function MotionPage() {
   const navigate = useNavigate();
   const [motion, setMotion] = useState(null);
   const [comments, setComments] = useState([]);
+  const [users, setUsers] = useState([]);
   const [showAttachment, setShowAttachment] = useState(null);
   const [votes, setVotes] = useState({ for: 0, against: 0 });
   const [showForPopup, setShowForPopup] = useState(false);
@@ -118,10 +131,10 @@ function MotionPage() {
   }, [socket, connected, id, fetchComments]);
 
   // Comment/reply handlers
-  const handleAddComment = async (text) => {
+  const handleAddComment = async (text, taggedUserIds = []) => {
     if (!text.trim()) return;
-    // addComment expects: (text, { motionId | issueId | taskId }, parentId)
-    await addComment(text, { motionId: Number(id) }, null); // parentId null for top-level
+    // addComment expects: (text, { motionId | issueId | taskId }, parentId, taggedUserIds)
+    await addComment(text, { motionId: Number(id) }, null, taggedUserIds); // parentId null for top-level
     // Broadcast to WebSocket
     if (socket && connected) {
       socket.emit('comment', { type: 'comment', motionId: parseInt(id) });
@@ -393,6 +406,7 @@ function MotionPage() {
               return null;
             }
           })()}
+          users={users}
           onAddComment={handleAddComment}
           onEditComment={handleEditComment}
           onDeleteComment={handleDeleteComment}

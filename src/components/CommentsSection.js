@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import FacebookComment from './FacebookComment';
+import MentionInput from './MentionInput';
 
 const CommentsSection = ({ 
   comments = [], 
@@ -8,15 +9,23 @@ const CommentsSection = ({
   onAddComment, 
   onEditComment, 
   onDeleteComment, 
-  onReplyToComment 
+  onReplyToComment,
+  users = [] // Array of organization users for mentions
 }) => {
   const [newComment, setNewComment] = useState('');
+  const [taggedUserIds, setTaggedUserIds] = useState([]);
 
   const handleAddComment = async () => {
     if (newComment.trim()) {
-      await onAddComment(newComment);
+      await onAddComment(newComment, taggedUserIds);
       setNewComment('');
+      setTaggedUserIds([]);
     }
+  };
+
+  const handleCommentChange = (text, mentionedUserIds) => {
+    setNewComment(text);
+    setTaggedUserIds(mentionedUserIds || []);
   };
 
   const handleReply = async (parentId, text) => {
@@ -47,61 +56,65 @@ const CommentsSection = ({
       
       {/* Add New Comment */}
       <div style={{ 
-        display: 'flex', 
-        gap: 8, 
-        alignItems: 'flex-start',
         marginBottom: 20,
         padding: '8px 12px',
         backgroundColor: '#f0f2f5',
         borderRadius: 16
       }}>
         <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          backgroundColor: '#1877f2',
-          color: 'white',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          fontWeight: 'bold',
-          flexShrink: 0
+          gap: 8,
+          alignItems: 'flex-start'
         }}>
-          You
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            backgroundColor: '#1877f2',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            flexShrink: 0
+          }}>
+            You
+          </div>
+          <div style={{
+            width: 'calc(100% - 100px)'
+          }}>
+            <MentionInput
+              value={newComment}
+              onChange={handleCommentChange}
+              onSubmit={handleAddComment}
+              placeholder="Write a comment..."
+              users={users}
+            />
+          </div>
         </div>
-        <input
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Write a comment..."
-          style={{
-            flex: 1,
-            border: 'none',
-            borderRadius: 16,
-            padding: '8px 12px',
-            fontSize: 14,
-            outline: 'none',
-            backgroundColor: 'white'
-          }}
-          onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-        />
-        <button
-          onClick={handleAddComment}
-          disabled={!newComment.trim()}
-          style={{
-            backgroundColor: newComment.trim() ? '#1877f2' : '#e4e6ea',
-            color: newComment.trim() ? 'white' : '#65676b',
-            border: 'none',
-            borderRadius: 16,
-            padding: '6px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: newComment.trim() ? 'pointer' : 'default'
-          }}
-        >
-          Post
-        </button>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: 8
+        }}>
+          <button
+            onClick={handleAddComment}
+            disabled={!newComment.trim()}
+            style={{
+              backgroundColor: newComment.trim() ? '#1877f2' : '#e4e6ea',
+              color: newComment.trim() ? 'white' : '#65676b',
+              border: 'none',
+              borderRadius: 12,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: newComment.trim() ? 'pointer' : 'default'
+            }}
+          >
+            Post
+          </button>
+        </div>
       </div>
       
       {/* Comments List */}

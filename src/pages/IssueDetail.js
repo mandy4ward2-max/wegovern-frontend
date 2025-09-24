@@ -176,9 +176,9 @@ function IssueDetail() {
     setShowMotionsModal(false);
   };
 
-  const handleAddComment = async (text) => {
+  const handleAddComment = async (text, taggedUserIds = []) => {
     try {
-      const comment = await addIssueComment(id, text);
+      const comment = await addIssueComment(id, text, null, taggedUserIds);
       if (comment.error) {
         alert('Failed to add comment: ' + comment.message);
       }
@@ -660,6 +660,7 @@ function IssueDetail() {
                 onEditComment={handleEditComment}
                 onDeleteComment={handleDeleteComment}
                 onReplyToComment={handleReplyToComment}
+                users={users}
               />
             )}
           </div>

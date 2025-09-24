@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import FilePreview from '../components/FilePreview';
 import CommentsSection from '../components/CommentsSection';
-import { getMotionById, getComments, addComment, editComment, deleteComment } from '../api';
+import { getMotionById, getComments, addComment, editComment, deleteComment, getUsers } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 
 
@@ -15,6 +15,7 @@ function CompletedMotionPage() {
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   const { socket, connected } = useWebSocket();
 
   // Fetch comments helper
@@ -48,6 +49,20 @@ function CompletedMotionPage() {
     fetchMotion();
     fetchComments();
   }, [id, fetchComments]);
+
+  // Load organization users for @mentions (same behavior as Issue/Motion pages)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getUsers(); // hits /users/org/all
+        if (!cancelled && Array.isArray(data)) setUsers(data);
+      } catch (_) {
+        if (!cancelled) setUsers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Listen for WebSocket comment events
   useEffect(() => {
@@ -247,6 +262,7 @@ function CompletedMotionPage() {
               return null;
             }
           })()}
+          users={users}
           onAddComment={handleAddComment}
           onEditComment={handleEditComment}
           onDeleteComment={handleDeleteComment}

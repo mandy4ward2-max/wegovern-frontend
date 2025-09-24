@@ -152,7 +152,7 @@ export async function getComments(motionId, issueId, taskId) {
   return Array.isArray(comments) ? comments : [];
 }
 
-export async function addComment(text, { motionId, issueId, taskId }, parentId = null) {
+export async function addComment(text, { motionId, issueId, taskId }, parentId = null, taggedUserIds = []) {
   try {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
@@ -164,7 +164,7 @@ export async function addComment(text, { motionId, issueId, taskId }, parentId =
       } catch {}
     }
     
-    const payload = { text, parentId, userId };
+    const payload = { text, parentId, userId, taggedUserIds };
     if (motionId) payload.motionId = Number(motionId);
     else if (issueId) payload.issueId = Number(issueId);
     else if (taskId) payload.taskId = Number(taskId);
@@ -355,11 +355,15 @@ export async function getIssueStats(orgId) {
 export async function getUsers() {
   try {
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE_URL}/users/org/all`, {
+    console.log('🔍 getUsers: Making API call to /users/org/all with timestamp:', Date.now());
+    const res = await fetch(`${API_BASE_URL}/users/org/all?t=${Date.now()}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    return await res.json();
+    const data = await res.json();
+    console.log('🔍 getUsers: Received data:', data);
+    return data;
   } catch (e) {
+    console.log('🔍 getUsers: Error:', e);
     return { error: true, message: e.message };
   }
 }
@@ -369,8 +373,8 @@ export async function getIssueComments(issueId) {
   return getComments(null, issueId, null);
 }
 
-export async function addIssueComment(issueId, text, parentId = null) {
-  return addComment(text, { issueId }, parentId);
+export async function addIssueComment(issueId, text, parentId = null, taggedUserIds = []) {
+  return addComment(text, { issueId }, parentId, taggedUserIds);
 }
 
 // Convenience functions for task comments
@@ -378,6 +382,6 @@ export async function getTaskComments(taskId) {
   return getComments(null, null, taskId);
 }
 
-export async function addTaskComment(taskId, text, parentId = null) {
-  return addComment(text, { taskId }, parentId);
+export async function addTaskComment(taskId, text, parentId = null, taggedUserIds = []) {
+  return addComment(text, { taskId }, parentId, taggedUserIds);
 }
