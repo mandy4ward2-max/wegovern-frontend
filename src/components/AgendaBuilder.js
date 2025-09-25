@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const initialSections = [];
 
-export default function AgendaBuilder() {
+export default function AgendaBuilder({ meetingId }) {
   const [sections, setSections] = useState(initialSections);
   const [sectionId, setSectionId] = useState(1);
   const [draggedItem, setDraggedItem] = useState(null);
@@ -18,6 +18,45 @@ export default function AgendaBuilder() {
   const [showEditNewMotionModal, setShowEditNewMotionModal] = useState(false);
   const [showMotionDropdown, setShowMotionDropdown] = useState(false);
   const [availableMotions, setAvailableMotions] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Save agenda to database
+  const handleSaveAgenda = async () => {
+    if (!meetingId) {
+      alert('No meeting ID provided. Cannot save agenda.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/meetings/${meetingId}/agenda`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          sections,
+          infoItems,
+          motionItems,
+          newMotionItems
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`Agenda saved successfully! Created ${data.itemsCreated} agenda items.`);
+      } else {
+        alert(`Error saving agenda: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error saving agenda:', error);
+      alert('Error saving agenda. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleAddInfoItem = (parentSectionId = null) => {
     const newItem = { 
@@ -104,7 +143,88 @@ export default function AgendaBuilder() {
   // Motion-related functions
   useEffect(() => {
     fetchAvailableMotions();
-  }, []);
+    if (meetingId) {
+      loadExistingAgenda();
+    }
+  }, [meetingId]);
+
+  // Load existing agenda from database
+  const loadExistingAgenda = async () => {
+    try {
+      const response = await fetch(`/api/meetings/${meetingId}/agenda`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (response.ok) {
+        const agendaItems = await response.json();
+        
+        // Convert database items back to component state
+        const loadedSections = [];
+        const loadedInfoItems = [];
+        const loadedMotionItems = [];
+        const loadedNewMotionItems = [];
+        
+        let maxSectionId = 1;
+        let maxInfoItemId = 1;
+        let maxMotionItemId = 1;
+        let maxNewMotionItemId = 1;
+
+        agendaItems.forEach(item => {
+          if (item.type === 'section') {
+            loadedSections.push({
+              id: item.id,
+              title: item.title,
+              isSub: item.isSubSection,
+              parentId: item.parentSectionId
+            });
+            maxSectionId = Math.max(maxSectionId, item.id + 1);
+          } else if (item.type === 'infoItem') {
+            loadedInfoItems.push({
+              id: item.id,
+              content: item.agendaItem,
+              parentSectionId: item.parentSectionId,
+              order: item.sortOrder
+            });
+            maxInfoItemId = Math.max(maxInfoItemId, item.id + 1);
+          } else if (item.type === 'motionItem') {
+            loadedMotionItems.push({
+              id: item.motionId,
+              title: item.title,
+              parentSectionId: item.parentSectionId,
+              order: item.sortOrder
+            });
+            maxMotionItemId = Math.max(maxMotionItemId, item.motionId + 1);
+          } else if (item.type === 'newMotion') {
+            loadedNewMotionItems.push({
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              parentSectionId: item.parentSectionId,
+              order: item.sortOrder
+            });
+            maxNewMotionItemId = Math.max(maxNewMotionItemId, item.id + 1);
+          }
+        });
+
+        // Update state with loaded items
+        setSections(loadedSections);
+        setInfoItems(loadedInfoItems);
+        setMotionItems(loadedMotionItems);
+        setNewMotionItems(loadedNewMotionItems);
+        
+        // Update ID counters
+        setSectionId(maxSectionId);
+        setInfoItemId(maxInfoItemId);
+        setMotionItemId(maxMotionItemId);
+        setNewMotionItemId(maxNewMotionItemId);
+
+      }
+    } catch (error) {
+      console.error('Error loading agenda:', error);
+    }
+  };
 
   const fetchAvailableMotions = async () => {
     try {
@@ -530,6 +650,26 @@ export default function AgendaBuilder() {
             </div>
           )}
         </div>
+        
+        {/* Save Button */}
+        <button 
+          type="button"
+          onClick={handleSaveAgenda}
+          disabled={isSaving || !meetingId}
+          style={{ 
+            marginLeft: 20,
+            background: isSaving ? '#ccc' : '#dc3545', 
+            color: '#fff', 
+            border: 'none', 
+            padding: '10px 24px', 
+            borderRadius: 6, 
+            fontWeight: 'bold', 
+            cursor: isSaving || !meetingId ? 'not-allowed' : 'pointer',
+            fontSize: '16px'
+          }}
+        >
+          {isSaving ? 'Saving...' : 'Save Agenda'}
+        </button>
       </div>
       <h2 style={{ marginBottom: 24, textAlign: 'center' }}>Compose Your Agenda</h2>
       
