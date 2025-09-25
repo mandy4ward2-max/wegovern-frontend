@@ -468,3 +468,125 @@ export async function getApprovalStats() {
     return { error: true, message: e.message };
   }
 }
+
+// Meetings API
+export async function getMeetings() {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    console.log('🔍 getMeetings: Received meetings:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ getMeetings: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getMeetingById(id) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    console.log('🔍 getMeetingById: Received meeting:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ getMeetingById: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function createMeeting(meetingData) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(meetingData)
+    });
+    const data = await res.json();
+    console.log('✅ createMeeting: Created meeting:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ createMeeting: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function updateMeeting(id, meetingData) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(meetingData)
+    });
+    const data = await res.json();
+    console.log('✅ updateMeeting: Updated meeting:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ updateMeeting: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function deleteMeeting(id) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    console.log('✅ deleteMeeting: Deleted meeting:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ deleteMeeting: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function updateAgendaOrder(meetingId, agendaItems) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings/${meetingId}/agenda-order`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ agendaItems })
+    });
+    const data = await res.json();
+    console.log('✅ updateAgendaOrder: Updated agenda order:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ updateAgendaOrder: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getOrgUsers() {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/meetings/org/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    console.log('👥 getOrgUsers: Received users:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ getOrgUsers: Error:', e);
+    return { error: true, message: e.message };
+  }
+}

@@ -12,6 +12,8 @@ import CompletedMotionPage from './pages/CompletedMotionPage';
 import Settings from './pages/Settings';
 import MyProfile from './pages/MyProfile';
 import Approvals from './pages/Approvals';
+import Meetings from './pages/Meetings';
+import MeetingDetail from './pages/MeetingDetail';
 import { MotionsProvider } from './MotionsContext';
 import { WebSocketProvider } from './WebSocketContext';
 import { getUserProfile, getUserOrganizations } from './api.settings';
@@ -148,7 +150,10 @@ function MainLayout() {
             <Link to="/motions" style={{ display: 'block', color: location.pathname === '/motions' ? '#fff' : '#bbdefb', background: location.pathname === '/motions' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/motions' ? '4px solid #fff' : '4px solid transparent' }}>Motions</Link>
             <Link to="/tasks" style={{ display: 'block', color: location.pathname === '/tasks' ? '#fff' : '#bbdefb', background: location.pathname === '/tasks' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/tasks' ? '4px solid #fff' : '4px solid transparent' }}>Tasks</Link>
             {(user?.role === 'SuperUser' || user?.role === 'Owner') && (
-              <Link to="/approvals" style={{ display: 'block', color: location.pathname === '/approvals' ? '#fff' : '#bbdefb', background: location.pathname === '/approvals' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/approvals' ? '4px solid #fff' : '4px solid transparent' }}>Approvals</Link>
+              <>
+                <Link to="/approvals" style={{ display: 'block', color: location.pathname === '/approvals' ? '#fff' : '#bbdefb', background: location.pathname === '/approvals' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/approvals' ? '4px solid #fff' : '4px solid transparent' }}>Approvals</Link>
+                <Link to="/meetings" style={{ display: 'block', color: location.pathname.startsWith('/meetings') ? '#fff' : '#bbdefb', background: location.pathname.startsWith('/meetings') ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname.startsWith('/meetings') ? '4px solid #fff' : '4px solid transparent' }}>Meetings</Link>
+              </>
             )}
             <Link to="/settings" style={{ display: 'block', color: location.pathname === '/settings' ? '#fff' : '#bbdefb', background: location.pathname === '/settings' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/settings' ? '4px solid #fff' : '4px solid transparent' }}>Settings</Link>
           </div>
@@ -180,6 +185,10 @@ function App() {
               <Route path="/motion/:id" element={<MotionPage />} />
               <Route path="/completed-motion/:id" element={<CompletedMotionPage />} />
               <Route path="/approvals" element={<Approvals />} />
+              <Route path="/meetings" element={<Meetings />} />
+              <Route path="/meetings/new" element={<MeetingDetail />} />
+              <Route path="/meetings/:id" element={<MeetingDetail />} />
+              <Route path="/meetings/:id/edit" element={<MeetingDetail />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/my-profile" element={<MyProfile />} />
             </Route>
