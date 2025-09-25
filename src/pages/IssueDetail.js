@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getIssueById, updateIssue, getUsers, getIssueComments, addIssueComment, editComment, deleteComment, getMotions, getTasks, closeIssue } from '../api';
 import { useWebSocket } from '../WebSocketContext';
 import CommentsSection from '../components/CommentsSection';
+import NewMotion from './NewMotion';
 
 function IssueDetail() {
   const { id } = useParams();
@@ -17,6 +18,9 @@ function IssueDetail() {
   const [relatedMotions, setRelatedMotions] = useState([]);
   const [relatedTasks, setRelatedTasks] = useState([]);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showAddMotionModal, setShowAddMotionModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [orgUsers, setOrgUsers] = useState([]);
   const [closeResolution, setCloseResolution] = useState('');
   const [closing, setClosing] = useState(false);
   const { socket } = useWebSocket();
@@ -40,6 +44,32 @@ function IssueDetail() {
     if (userStr) {
       setCurrentUser(JSON.parse(userStr));
     }
+  }, []);
+
+  // Fetch org users for task assignment dropdown
+  useEffect(() => {
+    async function fetchOrgUsers() {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api'}/users/org/all`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const users = await res.json();
+          setOrgUsers(Array.isArray(users) ? users : []);
+        } else {
+          setOrgUsers([]);
+        }
+      } catch (e) {
+        setOrgUsers([]);
+      }
+    }
+    fetchOrgUsers();
   }, []);
 
   // Fetch issue details and comments
@@ -155,6 +185,79 @@ function IssueDetail() {
     // Use the motions already loaded with the issue
     setRelatedMotions(issue.Motion || []);
     setShowMotionsModal(true);
+  };
+
+  // Handle Add Motion modal
+  const handleOpenAddMotionModal = () => {
+    setShowAddMotionModal(true);
+  };
+
+  // Handle Add Motion modal close
+  const handleCloseAddMotionModal = () => {
+    setShowAddMotionModal(false);
+  };
+
+  // Handle motion creation success
+  const handleMotionCreated = async (newMotion) => {
+    setShowAddMotionModal(false);
+    // Refresh the issue data to get updated motions
+    try {
+      const updatedIssue = await getIssueById(id);
+      setIssue(updatedIssue);
+    } catch (error) {
+      console.error('Failed to refresh issue data:', error);
+    }
+  };
+
+  // Handle Add Task modal
+  const handleOpenAddTaskModal = () => {
+    setShowAddTaskModal(true);
+  };
+
+  // Handle Add Task modal close
+  const handleCloseAddTaskModal = () => {
+    setShowAddTaskModal(false);
+  };
+
+  // Handle task creation
+  const handleTaskCreated = async (taskData) => {
+    const token = localStorage.getItem('token');
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          issueId: issue.id,
+          action: taskData.action,
+          person: orgUsers.find(u => String(u.id) === String(taskData.person))?.fullName || '',
+          userId: Number(taskData.person),
+          due: taskData.due ? new Date(taskData.due).toISOString() : undefined,
+          status: 'NOT_STARTED'
+        })
+      });
+
+      if (response.ok) {
+        setShowAddTaskModal(false);
+        // Refresh the issue data to get updated tasks
+        try {
+          const updatedIssue = await getIssueById(id);
+          setIssue(updatedIssue);
+        } catch (error) {
+          console.error('Failed to refresh issue data:', error);
+        }
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to create task: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      alert('Failed to create task. Please try again.');
+    }
   };
 
   // Handle tasks modal
@@ -620,7 +723,7 @@ function IssueDetail() {
             </div>
             {issue.status !== 'CLOSED' && (
               <button
-                onClick={() => {/* TODO: Add functionality */}}
+                onClick={handleOpenAddMotionModal}
                 style={{
                   width: '100%',
                   backgroundColor: '#007bff',
@@ -666,7 +769,7 @@ function IssueDetail() {
             </div>
             {issue.status !== 'CLOSED' && (
               <button
-                onClick={() => {/* TODO: Add functionality */}}
+                onClick={handleOpenAddTaskModal}
                 style={{
                   width: '100%',
                   backgroundColor: '#f57c00',
@@ -686,26 +789,25 @@ function IssueDetail() {
         </div>
 
         {/* Comments Section */}
-        {issue.status !== 'CLOSED' && (
-          <div style={{ marginTop: '40px', borderTop: '1px solid #e9ecef', paddingTop: '32px' }}>
-            {commentsLoading ? (
-              <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
-                Loading comments...
-              </div>
-            ) : (
-              <CommentsSection
-                comments={comments}
-                motionId={null}
-                userId={currentUser?.id}
-                onAddComment={handleAddComment}
-                onEditComment={handleEditComment}
-                onDeleteComment={handleDeleteComment}
-                onReplyToComment={handleReplyToComment}
-                users={users}
-              />
-            )}
-          </div>
-        )}
+        <div style={{ marginTop: '40px', borderTop: '1px solid #e9ecef', paddingTop: '32px' }}>
+          {commentsLoading ? (
+            <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+              Loading comments...
+            </div>
+          ) : (
+            <CommentsSection
+              comments={comments}
+              motionId={null}
+              userId={currentUser?.id}
+              onAddComment={handleAddComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onReplyToComment={handleReplyToComment}
+              users={users}
+              readOnly={issue.status === 'CLOSED'}
+            />
+          )}
+        </div>
       </div>
 
       {/* Motions Modal */}
@@ -939,6 +1041,266 @@ function IssueDetail() {
           </div>
         </div>
       )}
+
+      {/* Add Motion Modal */}
+      {showAddMotionModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.18)'
+          }}>
+            <NewMotion
+              inModal={true}
+              onClose={handleCloseAddMotionModal}
+              onSubmitted={handleMotionCreated}
+              initialIssueId={issue?.id}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Add Task Modal */}
+      {showAddTaskModal && (
+        <AddTaskModal
+          onClose={handleCloseAddTaskModal}
+          onSave={handleTaskCreated}
+          orgUsers={orgUsers}
+        />
+      )}
+    </div>
+  );
+}
+
+// Add Task Modal Component
+function AddTaskModal({ onClose, onSave, orgUsers }) {
+  const [taskData, setTaskData] = useState({
+    action: '',
+    person: '',
+    due: ''
+  });
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!taskData.action || !taskData.person || !taskData.due) {
+      alert('Please fill in all fields');
+      return;
+    }
+    onSave(taskData);
+  };
+
+  const handleCancel = () => {
+    if (taskData.action || taskData.person || taskData.due) {
+      setShowCancelConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: '20px'
+    }}>
+      <div style={{
+        maxWidth: '500px',
+        width: '90%',
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+        padding: '32px'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '24px', color: '#1976d2', textAlign: 'center' }}>Add Task</h3>
+        
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
+              Action
+            </label>
+            <input 
+              type="text" 
+              value={taskData.action} 
+              onChange={(e) => setTaskData(prev => ({ ...prev, action: e.target.value }))}
+              required 
+              style={{ 
+                width: '100%', 
+                padding: '10px', 
+                border: '1px solid #ccc', 
+                borderRadius: '4px',
+                fontSize: '14px',
+                boxSizing: 'border-box'
+              }} 
+              placeholder="Describe the task action"
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
+              Assignee
+            </label>
+            <select 
+              value={taskData.person} 
+              onChange={(e) => setTaskData(prev => ({ ...prev, person: e.target.value }))}
+              required 
+              style={{ 
+                width: '100%', 
+                padding: '10px', 
+                border: '1px solid #ccc', 
+                borderRadius: '4px',
+                fontSize: '14px',
+                boxSizing: 'border-box'
+              }}
+            >
+              <option value="">Select person...</option>
+              {orgUsers.map(u => (
+                <option key={u.id} value={u.id}>{u.fullName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#333' }}>
+              Due Date
+            </label>
+            <input 
+              type="date" 
+              value={taskData.due} 
+              onChange={(e) => setTaskData(prev => ({ ...prev, due: e.target.value }))}
+              required 
+              style={{ 
+                width: '100%', 
+                padding: '10px', 
+                border: '1px solid #ccc', 
+                borderRadius: '4px',
+                fontSize: '14px',
+                boxSizing: 'border-box'
+              }} 
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              type="submit" 
+              style={{ 
+                flex: 1, 
+                padding: '12px', 
+                backgroundColor: '#007bff', 
+                color: '#fff', 
+                border: 'none', 
+                borderRadius: '4px', 
+                fontWeight: 'bold', 
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              Save
+            </button>
+            <button 
+              type="button" 
+              onClick={handleCancel}
+              style={{ 
+                flex: 1, 
+                padding: '12px', 
+                backgroundColor: '#ccc', 
+                color: '#333', 
+                border: 'none', 
+                borderRadius: '4px', 
+                fontWeight: 'bold', 
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+
+        {/* Cancel Confirmation */}
+        {showCancelConfirm && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1100
+          }}>
+            <div style={{
+              backgroundColor: '#fff',
+              borderRadius: '10px',
+              padding: '32px 24px 24px 24px',
+              minWidth: '320px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ marginTop: 0, marginBottom: '18px', color: '#dc3545' }}>Cancel Task?</h3>
+              <p style={{ marginBottom: '24px' }}>Are you sure you want to cancel? Any unsaved changes will be lost.</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '18px' }}>
+                <button 
+                  onClick={() => { setShowCancelConfirm(false); onClose(); }}
+                  style={{ 
+                    padding: '10px 24px', 
+                    backgroundColor: '#dc3545', 
+                    color: '#fff', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    fontWeight: 'bold', 
+                    fontSize: '16px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Yes, Cancel
+                </button>
+                <button 
+                  onClick={() => setShowCancelConfirm(false)}
+                  style={{ 
+                    padding: '10px 24px', 
+                    backgroundColor: '#ccc', 
+                    color: '#333', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    fontWeight: 'bold', 
+                    fontSize: '16px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Keep Editing
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

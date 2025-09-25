@@ -10,7 +10,8 @@ const CommentsSection = ({
   onEditComment, 
   onDeleteComment, 
   onReplyToComment,
-  users = [] // Array of organization users for mentions
+  users = [], // Array of organization users for mentions
+  readOnly = false // When true, hides add/edit/delete functionality
 }) => {
   const [newComment, setNewComment] = useState('');
   const [taggedUserIds, setTaggedUserIds] = useState([]);
@@ -58,16 +59,17 @@ const CommentsSection = ({
         marginBottom: 16,
         color: '#050505'
       }}>
-        Comments ({comments.length})
+        Comments ({comments.length}) {readOnly && <span style={{ color: '#666', fontSize: 12, fontWeight: 'normal' }}>(Read Only)</span>}
       </h3>
       
-      {/* Add New Comment */}
-      <div style={{ 
-        marginBottom: 20,
-        padding: '8px 12px',
-        backgroundColor: '#f0f2f5',
-        borderRadius: 16
-      }}>
+      {/* Add New Comment - Only show when not read-only */}
+      {!readOnly && (
+        <div style={{ 
+          marginBottom: 20,
+          padding: '8px 12px',
+          backgroundColor: '#f0f2f5',
+          borderRadius: 16
+        }}>
         <div style={{
           display: 'flex',
           gap: 8,
@@ -126,7 +128,8 @@ const CommentsSection = ({
             Post
           </button>
         </div>
-      </div>
+        </div>
+      )}
       
       {/* Comments List */}
       <div>
@@ -142,6 +145,7 @@ const CommentsSection = ({
               currentUserId={userId}
               allComments={comments}
               users={users}
+              readOnly={readOnly}
             />
           ))
         ) : (

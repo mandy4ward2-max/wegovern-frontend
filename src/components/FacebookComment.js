@@ -9,7 +9,8 @@ const FacebookComment = ({
   onDelete, 
   currentUserId, 
   allComments = [],
-  users = []
+  users = [],
+  readOnly = false
 }) => {
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -260,25 +261,10 @@ const FacebookComment = ({
               {formatDate(comment.createdAt)}
             </span>
             
-            <button
-              onClick={() => setShowReplyBox(!showReplyBox)}
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#65676b',
-                cursor: 'pointer',
-                fontSize: 12,
-                fontWeight: 600,
-                padding: 0
-              }}
-            >
-              Reply
-            </button>
-            
-            {comment.editable && !isEditing && (
+            {!readOnly && (
               <>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => setShowReplyBox(!showReplyBox)}
                   style={{
                     border: 'none',
                     background: 'none',
@@ -289,23 +275,42 @@ const FacebookComment = ({
                     padding: 0
                   }}
                 >
-                  Edit
+                  Reply
                 </button>
                 
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: '#65676b',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: 0
-                  }}
-                >
-                  Delete
-                </button>
+                {comment.editable && !isEditing && (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: '#65676b',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: 0
+                      }}
+                    >
+                      Edit
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: '#65676b',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: 0
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -313,7 +318,7 @@ const FacebookComment = ({
       </div>
       
       {/* Reply Box */}
-      {showReplyBox && (
+      {!readOnly && showReplyBox && (
         <div style={{ marginTop: 8, marginLeft: 40 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <div style={{
@@ -444,6 +449,7 @@ const FacebookComment = ({
           currentUserId={currentUserId}
           allComments={allComments}
           users={users}
+          readOnly={readOnly}
         />
       ))}
     </div>

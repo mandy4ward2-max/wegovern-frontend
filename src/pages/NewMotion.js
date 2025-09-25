@@ -275,7 +275,7 @@ function NewMotion({ inModal = false, onClose, onSubmitted, initialIssueId = '' 
   };
 
   const Inner = (
-      <div style={{ position: 'relative', padding: '32px', maxWidth: '600px', width: '100%', background: '#fff', borderRadius: '12px', boxShadow: inModal ? '0 4px 24px rgba(0,0,0,0.18)' : '0 4px 24px rgba(0,0,0,0.12)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ position: 'relative', padding: '32px', maxWidth: inModal ? '100%' : '600px', width: '100%', background: inModal ? 'transparent' : '#fff', borderRadius: inModal ? '0' : '12px', boxShadow: inModal ? 'none' : '0 4px 24px rgba(0,0,0,0.12)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', margin: inModal ? '0 auto' : '0' }}>
         {/* Attachment icon (paper clip) */}
         <button onClick={() => setShowPopup(true)} style={{ position: 'absolute', top: 24, right: 24, background: 'none', border: 'none', cursor: 'pointer' }} title="Add Attachment">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
