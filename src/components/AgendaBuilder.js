@@ -29,7 +29,7 @@ export default function AgendaBuilder({ meetingId }) {
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/meetings/${meetingId}/agenda`, {
+      const response = await fetch(`/api/agenda/${meetingId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +151,7 @@ export default function AgendaBuilder({ meetingId }) {
   // Load existing agenda from database
   const loadExistingAgenda = async () => {
     try {
-      const response = await fetch(`/api/meetings/${meetingId}/agenda`, {
+      const response = await fetch(`/api/agenda/${meetingId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
