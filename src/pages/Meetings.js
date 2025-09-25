@@ -19,6 +19,13 @@ function Meetings() {
     }
   }, [navigate]);
 
+  // Check if user has access to meetings page
+  useEffect(() => {
+    if (currentUser && !canViewMeetings()) {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
+
   // Fetch meetings
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -74,7 +81,18 @@ function Meetings() {
     console.log('Current user:', currentUser);
   }
 
-  // Check if user has permission to manage meetings (robust for string/array/case)
+  // Check if user can view meetings (Board, Owner, SuperUser)
+  const canViewMeetings = () => {
+    if (!currentUser) return false;
+    const roles = Array.isArray(currentUser.role)
+      ? currentUser.role
+      : (typeof currentUser.role === 'string' ? [currentUser.role] : []);
+    return roles.some(r =>
+      typeof r === 'string' && ['owner', 'super_user', 'board'].includes(r.toLowerCase())
+    );
+  };
+
+  // Check if user has permission to manage meetings (create, edit, delete) - only Owner and SuperUser
   const canManageMeetings = () => {
     if (!currentUser) return false;
     const roles = Array.isArray(currentUser.role)
@@ -85,9 +103,9 @@ function Meetings() {
     );
   };
 
-  // Check if meeting can be launched (1 hour before start to 1 hour after end)
+  // Check if meeting can be launched (1 hour before start to 1 hour after end) - Board, Owner, SuperUser
   const canLaunchMeeting = (meeting) => {
-    if (!canManageMeetings()) return false;
+    if (!canViewMeetings()) return false;
     
     const now = new Date();
     const startDate = new Date(meeting.startDateTime || meeting.startDate);
@@ -302,35 +320,37 @@ function Meetings() {
                     </div>
 
                     {/* Action Buttons */}
-                    {canManageMeetings() && (
+                    {canViewMeetings() && (
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: '10px',
                         marginLeft: '20px'
                       }}>
-                        {/* Edit Meeting Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/meetings/${meeting.id}`);
-                          }}
-                          style={{
-                            background: '#2196f3',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '8px 16px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}
-                          title="Edit Meeting"
-                        >
-                          Edit
-                        </button>
+                        {/* Edit Meeting Button - Only for managers */}
+                        {canManageMeetings() && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/meetings/${meeting.id}`);
+                            }}
+                            style={{
+                              background: '#2196f3',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '8px 16px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 'bold'
+                            }}
+                            title="Edit Meeting"
+                          >
+                            Edit
+                          </button>
+                        )}
 
-                        {/* Launch Meeting Button */}
+                        {/* Launch Meeting Button - For all viewers when time is right */}
                         {canLaunchMeeting(meeting) && (
                           <button
                             onClick={(e) => {

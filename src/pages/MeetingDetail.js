@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getMeetingById, createMeeting, updateMeeting, getMotions, getOrgUsers, deleteMeeting } from '../api';
+import AgendaBuilder from '../components/AgendaBuilder';
 
 function MeetingDetail() {
   const navigate = useNavigate();
@@ -48,6 +49,39 @@ function MeetingDetail() {
       navigate('/login');
     }
   }, [navigate]);
+
+  // Check if user can view meetings (Board, Owner, SuperUser)
+  const canViewMeetings = () => {
+    if (!currentUser) return false;
+    const roles = Array.isArray(currentUser.role)
+      ? currentUser.role
+      : (typeof currentUser.role === 'string' ? [currentUser.role] : []);
+    return roles.some(r =>
+      typeof r === 'string' && ['owner', 'super_user', 'board'].includes(r.toLowerCase())
+    );
+  };
+
+  // Check if user has permission to manage meetings (create, edit, delete) - only Owner and SuperUser
+  const canManageMeetings = () => {
+    if (!currentUser) return false;
+    const roles = Array.isArray(currentUser.role)
+      ? currentUser.role
+      : (typeof currentUser.role === 'string' ? [currentUser.role] : []);
+    return roles.some(r =>
+      typeof r === 'string' && ['owner', 'super_user'].includes(r.toLowerCase())
+    );
+  };
+
+  // Check if user has access to this page
+  useEffect(() => {
+    if (currentUser && !canViewMeetings()) {
+      navigate('/');
+    }
+    // For new meetings, only managers can access
+    if (currentUser && !isEdit && !canManageMeetings()) {
+      navigate('/meetings');
+    }
+  }, [currentUser, navigate, isEdit]);
 
   // Fetch meeting data if editing
   useEffect(() => {
@@ -266,7 +300,7 @@ function MeetingDetail() {
             >
               Cancel
             </button>
-            {isEdit && (
+            {canManageMeetings() && isEdit && (
               <button
                 onClick={() => setShowDeleteModal(true)}
                 style={{
@@ -282,21 +316,23 @@ function MeetingDetail() {
                 Delete
               </button>
             )}
-            <button
-              onClick={handleSubmit}
-              style={{
-                background: '#28a745',
-                color: '#fff',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold'
-              }}
-            >
-              Save Changes
-            </button>
+            {canManageMeetings() && (
+              <button
+                onClick={handleSubmit}
+                style={{
+                  background: '#28a745',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                Save Changes
+              </button>
+            )}
           </div>
         </div>
 
@@ -368,6 +404,7 @@ function MeetingDetail() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
+                readOnly={!canManageMeetings()}
                 style={{
                   width: '100%',
                   padding: '12px 16px',
@@ -375,7 +412,7 @@ function MeetingDetail() {
                   borderRadius: '6px',
                   fontSize: '16px',
                   boxSizing: 'border-box',
-                  backgroundColor: '#f8f9fa'
+                  backgroundColor: canManageMeetings() ? '#f8f9fa' : '#e9ecef'
                 }}
                 placeholder="Q1 Meeting - Copy"
                 required
@@ -405,6 +442,7 @@ function MeetingDetail() {
                     type="datetime-local"
                     value={formData.startDateTime}
                     onChange={(e) => handleInputChange('startDateTime', e.target.value)}
+                    readOnly={!canManageMeetings()}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
@@ -412,7 +450,7 @@ function MeetingDetail() {
                       borderRadius: '6px',
                       fontSize: '16px',
                       boxSizing: 'border-box',
-                      backgroundColor: '#f8f9fa'
+                      backgroundColor: canManageMeetings() ? '#f8f9fa' : '#e9ecef'
                     }}
                     required
                   />
@@ -435,6 +473,7 @@ function MeetingDetail() {
                     type="datetime-local"
                     value={formData.endDateTime}
                     onChange={(e) => handleInputChange('endDateTime', e.target.value)}
+                    readOnly={!canManageMeetings()}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
@@ -442,7 +481,7 @@ function MeetingDetail() {
                       borderRadius: '6px',
                       fontSize: '16px',
                       boxSizing: 'border-box',
-                      backgroundColor: '#f8f9fa'
+                      backgroundColor: canManageMeetings() ? '#f8f9fa' : '#e9ecef'
                     }}
                     required
                   />
@@ -464,6 +503,7 @@ function MeetingDetail() {
               <textarea
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
+                readOnly={!canManageMeetings()}
                 style={{
                   width: '100%',
                   padding: '12px 16px',
@@ -473,7 +513,7 @@ function MeetingDetail() {
                   minHeight: '120px',
                   resize: 'vertical',
                   boxSizing: 'border-box',
-                  backgroundColor: '#f8f9fa',
+                  backgroundColor: canManageMeetings() ? '#f8f9fa' : '#e9ecef',
                   fontFamily: 'inherit'
                 }}
                 placeholder="Enter meeting description..."
@@ -495,22 +535,24 @@ function MeetingDetail() {
                 }}>
                   {formData.invitees.length} Invitees
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setShowInviteesModal(true)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#6c757d',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <span>⚙️</span> Manage Invitees
-                </button>
+                {canManageMeetings() && (
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteesModal(true)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#6c757d',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <span>⚙️</span> Manage Invitees
+                  </button>
+                )}
               </div>
               
               {/* Avatar row */}
@@ -563,12 +605,9 @@ function MeetingDetail() {
             padding: '30px', 
             borderRadius: '8px', 
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginBottom: '20px',
-            textAlign: 'center',
-            color: '#666'
+            marginBottom: '20px'
           }}>
-            <h3>Agenda Builder</h3>
-            <p>Agenda functionality will be implemented here...</p>
+            <AgendaBuilder />
           </div>
         )}
       </form>

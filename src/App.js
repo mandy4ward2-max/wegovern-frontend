@@ -150,10 +150,10 @@ function MainLayout() {
             <Link to="/motions" style={{ display: 'block', color: location.pathname === '/motions' ? '#fff' : '#bbdefb', background: location.pathname === '/motions' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/motions' ? '4px solid #fff' : '4px solid transparent' }}>Motions</Link>
             <Link to="/tasks" style={{ display: 'block', color: location.pathname === '/tasks' ? '#fff' : '#bbdefb', background: location.pathname === '/tasks' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/tasks' ? '4px solid #fff' : '4px solid transparent' }}>Tasks</Link>
             {(user?.role === 'SuperUser' || user?.role === 'Owner') && (
-              <>
-                <Link to="/approvals" style={{ display: 'block', color: location.pathname === '/approvals' ? '#fff' : '#bbdefb', background: location.pathname === '/approvals' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/approvals' ? '4px solid #fff' : '4px solid transparent' }}>Approvals</Link>
-                <Link to="/meetings" style={{ display: 'block', color: location.pathname.startsWith('/meetings') ? '#fff' : '#bbdefb', background: location.pathname.startsWith('/meetings') ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname.startsWith('/meetings') ? '4px solid #fff' : '4px solid transparent' }}>Meetings</Link>
-              </>
+              <Link to="/approvals" style={{ display: 'block', color: location.pathname === '/approvals' ? '#fff' : '#bbdefb', background: location.pathname === '/approvals' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/approvals' ? '4px solid #fff' : '4px solid transparent' }}>Approvals</Link>
+            )}
+            {(user?.role === 'SuperUser' || user?.role === 'Owner' || user?.role === 'Board') && (
+              <Link to="/meetings" style={{ display: 'block', color: location.pathname.startsWith('/meetings') ? '#fff' : '#bbdefb', background: location.pathname.startsWith('/meetings') ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname.startsWith('/meetings') ? '4px solid #fff' : '4px solid transparent' }}>Meetings</Link>
             )}
             <Link to="/settings" style={{ display: 'block', color: location.pathname === '/settings' ? '#fff' : '#bbdefb', background: location.pathname === '/settings' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/settings' ? '4px solid #fff' : '4px solid transparent' }}>Settings</Link>
           </div>
