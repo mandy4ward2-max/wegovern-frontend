@@ -50,9 +50,9 @@ function Home() {
     try {
       console.log('🔍 Fetching pending motions...', { orgId, userId, token: token ? 'present' : 'missing' });
       
-      // Fetch pending motions
-      const pendingResponse = await fetch(
-        `http://localhost:3000/api/motions?orgId=${orgId}&status=pending`,
+      // Fetch outstanding motions (both unapproved and pending)
+      const outstandingResponse = await fetch(
+        `http://localhost:3000/api/motions?orgId=${orgId}`,
         {
           method: 'GET',
           headers: {
@@ -62,52 +62,35 @@ function Home() {
         }
       );
       
-      console.log('📡 Pending response status:', pendingResponse.status, pendingResponse.statusText);
+      console.log('📡 Outstanding response status:', outstandingResponse.status, outstandingResponse.statusText);
       
-      let motions = await pendingResponse.json();
-      console.log('📋 Raw motions from API:', motions);
+      let allMotions = await outstandingResponse.json();
+      console.log('📋 Raw motions from API:', allMotions);
       
-      if (Array.isArray(motions) && userId) {
-        // For each motion, check if user voted
-        motions = await Promise.all(motions.map(async m => {
+      if (Array.isArray(allMotions) && userId) {
+        // Filter motions into outstanding (pending only) and completed
+        const outstandingMotions = allMotions.filter(motion => 
+          motion.status === 'pending'
+        );
+        const completedMotions = allMotions.filter(motion => 
+          motion.status === 'passed' || motion.status === 'defeated'
+        );
+        // For each outstanding motion, check if user voted
+        const processedOutstandingMotions = await Promise.all(outstandingMotions.map(async m => {
           const tally = await getVoteTally(m.id, userId);
           return { ...m, userVoted: !!tally.userVote };
         }));
+        
+        console.log('✅ Final outstanding motions after processing:', processedOutstandingMotions);
+        setOutstandingMotions(Array.isArray(processedOutstandingMotions) ? processedOutstandingMotions : []);
+        
+        // Set completed motions (no need to fetch again, we already have them)
+        console.log('✅ Completed motions:', completedMotions);
+        setCompletedMotions(Array.isArray(completedMotions) ? completedMotions : []);
+      } else {
+        setOutstandingMotions([]);
+        setCompletedMotions([]);
       }
-      console.log('✅ Final motions after processing:', motions);
-      setOutstandingMotions(Array.isArray(motions) ? motions : []);
-
-      // Fetch completed motions (passed and defeated)
-      const completedResponsePassed = await fetch(
-        `http://localhost:3000/api/motions?orgId=${orgId}&status=passed`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      const completedResponseDefeated = await fetch(
-        `http://localhost:3000/api/motions?orgId=${orgId}&status=defeated`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const passedMotions = await completedResponsePassed.json();
-      const defeatedMotions = await completedResponseDefeated.json();
-      
-      const allCompleted = [
-        ...(Array.isArray(passedMotions) ? passedMotions : []),
-        ...(Array.isArray(defeatedMotions) ? defeatedMotions : [])
-      ];
-      
-      setCompletedMotions(allCompleted);
     } catch (e) {
       setOutstandingMotions([]);
       setCompletedMotions([]);

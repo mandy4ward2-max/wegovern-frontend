@@ -17,7 +17,9 @@ function Approvals() {
     status: 'all',
     submittedBy: 'all',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
+    processedDateFrom: '',
+    processedDateTo: ''
   });
 
   // Processing modal state
@@ -83,7 +85,9 @@ function Approvals() {
       status: 'all',
       submittedBy: 'all',
       dateFrom: '',
-      dateTo: ''
+      dateTo: '',
+      processedDateFrom: '',
+      processedDateTo: ''
     });
   };
 
@@ -176,158 +180,218 @@ function Approvals() {
   }
 
   return (
-    <div className="container mt-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Outstanding Approvals Report</h2>
-      </div>
-
-      {/* Filters */}
-      <div className="card mb-4">
-        <div className="card-header">
-          <h5 className="mb-0">Filters</h5>
-        </div>
-        <div className="card-body">
-          <div className="row g-3">
-            <div className="col-md-2">
-              <label className="form-label">Approval Type</label>
-              <select
-                className="form-select"
-                value={filters.type}
-                onChange={(e) => handleFilterChange('type', e.target.value)}
-              >
-                <option value="all">All Types</option>
-                <option value="user_registration">User Registration</option>
-                <option value="motion_approval">Motion Approval</option>
-                <option value="task_approval">Task Approval</option>
-              </select>
-            </div>
-
-            <div className="col-md-2">
-              <label className="form-label">Status</label>
-              <select
-                className="form-select"
-                value={filters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-
-            <div className="col-md-2">
-              <label className="form-label">Submitted By</label>
-              <select
-                className="form-select"
-                value={filters.submittedBy}
-                onChange={(e) => handleFilterChange('submittedBy', e.target.value)}
-              >
-                <option value="all">All Users</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.fullName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="col-md-2">
-              <label className="form-label">Date From</label>
-              <input
-                type="date"
-                className="form-control"
-                value={filters.dateFrom}
-                onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
-              />
-            </div>
-
-            <div className="col-md-2">
-              <label className="form-label">Date To</label>
-              <input
-                type="date"
-                className="form-control"
-                value={filters.dateTo}
-                onChange={(e) => handleFilterChange('dateTo', e.target.value)}
-              />
-            </div>
-
-            <div className="col-md-2 d-flex align-items-end">
-              <button
-                type="button"
-                className="btn btn-outline-secondary"
-                onClick={clearFilters}
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Results */}
-      <div className="card">
-        <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">Approvals ({approvals.length})</h5>
-        </div>
-        <div className="card-body">
-          {approvals.length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-muted">No approvals found matching the current filters.</p>
-            </div>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-hover">
-                <thead>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f8f9fa' }}>
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+        
+        {/* Outstanding Approvals Report */}
+        <div style={{ backgroundColor: 'white', borderRadius: '10px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ marginBottom: '20px', color: '#333', textAlign: 'center' }}>Outstanding Approvals</h3>
+          
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Type</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Date Submitted</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Submitted By</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Status</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Date Processed</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Processed By</th>
+                  <th style={{ padding: '12px 8px', textAlign: 'left', fontWeight: 'bold', color: '#666' }}>Actions</th>
+                </tr>
+                {/* Filter Row - directly under headers */}
+                <tr>
+                  <td style={{ padding: '8px' }}>
+                    <select 
+                      style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}
+                      value={filters.type}
+                      onChange={(e) => handleFilterChange('type', e.target.value)}
+                    >
+                      <option value="all">Filter</option>
+                      <option value="user_registration">User Registration</option>
+                      <option value="motion_approval">Motion Approval</option>
+                      <option value="task_approval">Task Approval</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <input 
+                        type="date"
+                        style={{ width: '100%', padding: '2px', border: '1px solid #ddd', borderRadius: '3px', fontSize: '10px' }}
+                        value={filters.dateFrom}
+                        onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                        placeholder="From..."
+                        title="Date Submitted From"
+                      />
+                      <input 
+                        type="date"
+                        style={{ width: '100%', padding: '2px', border: '1px solid #ddd', borderRadius: '3px', fontSize: '10px' }}
+                        value={filters.dateTo}
+                        onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                        placeholder="To..."
+                        title="Date Submitted To"
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    <select 
+                      style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}
+                      value={filters.submittedBy}
+                      onChange={(e) => handleFilterChange('submittedBy', e.target.value)}
+                    >
+                      <option value="all">Filter</option>
+                      {users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    <select 
+                      style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}
+                      value={filters.status}
+                      onChange={(e) => handleFilterChange('status', e.target.value)}
+                    >
+                      <option value="all">Filter</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <input 
+                        type="date"
+                        style={{ width: '100%', padding: '2px', border: '1px solid #ddd', borderRadius: '3px', fontSize: '10px' }}
+                        value={filters.processedDateFrom}
+                        onChange={(e) => handleFilterChange('processedDateFrom', e.target.value)}
+                        placeholder="From..."
+                        title="Date Processed From"
+                      />
+                      <input 
+                        type="date"
+                        style={{ width: '100%', padding: '2px', border: '1px solid #ddd', borderRadius: '3px', fontSize: '10px' }}
+                        value={filters.processedDateTo}
+                        onChange={(e) => handleFilterChange('processedDateTo', e.target.value)}
+                        placeholder="To..."
+                        title="Date Processed To"
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    <select style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}>
+                      <option>Filter</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    <select style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}>
+                      <option>Process</option>
+                    </select>
+                  </td>
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.length === 0 ? (
                   <tr>
-                    <th>Type</th>
-                    <th>Description</th>
-                    <th>Status</th>
-                    <th>Date Submitted</th>
-                    <th>Submitted By</th>
-                    <th>Date Processed</th>
-                    <th>Processed By</th>
-                    <th>Actions</th>
+                    <td colSpan="7" style={{ padding: '20px', textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                      No approvals found matching the current filters.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {approvals.map((approval) => (
-                    <tr key={approval.id}>
-                      <td>
-                        <span className="badge bg-primary">
+                ) : (
+                  approvals.map((approval, index) => (
+                    <tr key={approval.id} style={{ 
+                      borderBottom: '1px solid #eee', 
+                      backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa'}
+                    >
+                      <td style={{ padding: '12px 8px' }}>
+                        <span style={{ 
+                          backgroundColor: '#007bff', 
+                          color: 'white', 
+                          padding: '4px 8px', 
+                          borderRadius: '12px', 
+                          fontSize: '11px', 
+                          fontWeight: 'bold' 
+                        }}>
                           {getApprovalTypeDisplay(approval.type)}
                         </span>
                       </td>
-                      <td>
-                        <div className="text-truncate" style={{maxWidth: '200px'}}>
-                          {approval.description || 'No description'}
-                        </div>
+                      <td style={{ padding: '12px 8px' }}>
+                        {new Date(approval.dateSubmitted).toLocaleDateString('en-US', {
+                          month: 'numeric',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
                       </td>
-                      <td>
-                        <span className={`badge ${getStatusBadgeClass(approval.status)}`}>
+                      <td style={{ padding: '12px 8px' }}>{approval.submittedBy.fullName}</td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span style={{ 
+                          backgroundColor: approval.status === 'pending' ? '#ffc107' : approval.status === 'approved' ? '#28a745' : '#dc3545',
+                          color: approval.status === 'pending' ? '#000' : '#fff', 
+                          padding: '4px 8px', 
+                          borderRadius: '12px', 
+                          fontSize: '11px', 
+                          fontWeight: 'bold' 
+                        }}>
                           {approval.status.charAt(0).toUpperCase() + approval.status.slice(1)}
                         </span>
                       </td>
-                      <td>{formatDate(approval.dateSubmitted)}</td>
-                      <td>{approval.submittedBy.fullName}</td>
-                      <td>
-                        {approval.dateProcessed ? formatDate(approval.dateProcessed) : '-'}
+                      <td style={{ padding: '12px 8px' }}>
+                        {approval.dateProcessed ? 
+                          new Date(approval.dateProcessed).toLocaleDateString('en-US', {
+                            month: 'numeric',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : '-'
+                        }
                       </td>
-                      <td>
+                      <td style={{ padding: '12px 8px' }}>
                         {approval.approvedBy ? approval.approvedBy.fullName : '-'}
                       </td>
-                      <td>
+                      <td style={{ padding: '12px 8px' }}>
                         {approval.status === 'pending' && (
-                          <div className="btn-group btn-group-sm" role="group">
+                          <div style={{ display: 'flex', gap: '5px' }}>
                             <button
-                              className="btn btn-success"
-                              onClick={() => openProcessModal(approval, 'approve')}
+                              style={{
+                                backgroundColor: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openProcessModal(approval, 'approve');
+                              }}
+                              onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
+                              onMouseLeave={(e) => e.target.style.backgroundColor = '#28a745'}
                             >
                               Approve
                             </button>
                             <button
-                              className="btn btn-danger"
-                              onClick={() => openProcessModal(approval, 'reject')}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openProcessModal(approval, 'reject');
+                              }}
+                              onMouseEnter={(e) => e.target.style.backgroundColor = '#c82333'}
+                              onMouseLeave={(e) => e.target.style.backgroundColor = '#dc3545'}
                             >
                               Reject
                             </button>
@@ -335,11 +399,11 @@ function Approvals() {
                         )}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
