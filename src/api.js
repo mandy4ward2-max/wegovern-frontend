@@ -385,3 +385,86 @@ export async function getTaskComments(taskId) {
 export async function addTaskComment(taskId, text, parentId = null, taggedUserIds = []) {
   return addComment(text, { taskId }, parentId, taggedUserIds);
 }
+
+// Approval API functions
+export async function getApprovals(filters = {}) {
+  try {
+    const token = localStorage.getItem('token');
+    const queryParams = new URLSearchParams();
+    
+    Object.keys(filters).forEach(key => {
+      if (filters[key] && filters[key] !== 'all') {
+        queryParams.append(key, filters[key]);
+      }
+    });
+    
+    const url = `${API_BASE_URL}/approvals${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    console.log('🔍 getApprovals: Making API call to:', url);
+    
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    const data = await res.json();
+    console.log('🔍 getApprovals: Received data:', data);
+    return data;
+  } catch (e) {
+    console.log('🔍 getApprovals: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function createApproval(approvalData) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/approvals`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(approvalData)
+    });
+    const data = await res.json();
+    console.log('✅ createApproval: Created approval:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ createApproval: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function processApproval(approvalId, processData) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/approvals/${approvalId}/process`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(processData)
+    });
+    const data = await res.json();
+    console.log('✅ processApproval: Processed approval:', data);
+    return data;
+  } catch (e) {
+    console.log('❌ processApproval: Error:', e);
+    return { error: true, message: e.message };
+  }
+}
+
+export async function getApprovalStats() {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE_URL}/approvals/stats`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    console.log('🔍 getApprovalStats: Received stats:', data);
+    return data;
+  } catch (e) {
+    console.log('🔍 getApprovalStats: Error:', e);
+    return { error: true, message: e.message };
+  }
+}

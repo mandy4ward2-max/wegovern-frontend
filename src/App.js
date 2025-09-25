@@ -11,6 +11,7 @@ import MotionPage from './pages/MotionPage';
 import CompletedMotionPage from './pages/CompletedMotionPage';
 import Settings from './pages/Settings';
 import MyProfile from './pages/MyProfile';
+import Approvals from './pages/Approvals';
 import { MotionsProvider } from './MotionsContext';
 import { WebSocketProvider } from './WebSocketContext';
 import { getUserProfile, getUserOrganizations } from './api.settings';
@@ -146,6 +147,9 @@ function MainLayout() {
             <Link to="/issues" style={{ display: 'block', color: location.pathname === '/issues' ? '#fff' : '#bbdefb', background: location.pathname === '/issues' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/issues' ? '4px solid #fff' : '4px solid transparent' }}>Issues</Link>
             <Link to="/motions" style={{ display: 'block', color: location.pathname === '/motions' ? '#fff' : '#bbdefb', background: location.pathname === '/motions' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/motions' ? '4px solid #fff' : '4px solid transparent' }}>Motions</Link>
             <Link to="/tasks" style={{ display: 'block', color: location.pathname === '/tasks' ? '#fff' : '#bbdefb', background: location.pathname === '/tasks' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/tasks' ? '4px solid #fff' : '4px solid transparent' }}>Tasks</Link>
+            {(user?.role === 'SuperUser' || user?.role === 'Owner') && (
+              <Link to="/approvals" style={{ display: 'block', color: location.pathname === '/approvals' ? '#fff' : '#bbdefb', background: location.pathname === '/approvals' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/approvals' ? '4px solid #fff' : '4px solid transparent' }}>Approvals</Link>
+            )}
             <Link to="/settings" style={{ display: 'block', color: location.pathname === '/settings' ? '#fff' : '#bbdefb', background: location.pathname === '/settings' ? '#1565c0' : 'none', fontWeight: 'bold', padding: '14px 32px', textDecoration: 'none', borderLeft: location.pathname === '/settings' ? '4px solid #fff' : '4px solid transparent' }}>Settings</Link>
           </div>
         </div>
@@ -175,6 +179,7 @@ function App() {
               <Route path="/new-motion" element={<NewMotion />} />
               <Route path="/motion/:id" element={<MotionPage />} />
               <Route path="/completed-motion/:id" element={<CompletedMotionPage />} />
+              <Route path="/approvals" element={<Approvals />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/my-profile" element={<MyProfile />} />
             </Route>
