@@ -180,7 +180,7 @@ export default function AgendaBuilder({ meetingId }) {
               parentId: item.parentSectionId
             });
             maxSectionId = Math.max(maxSectionId, item.id + 1);
-          } else if (item.type === 'infoItem') {
+          } else if (item.type === 'information' || item.type === 'infoItem') {
             loadedInfoItems.push({
               id: item.id,
               content: item.agendaItem,
@@ -188,14 +188,15 @@ export default function AgendaBuilder({ meetingId }) {
               order: item.sortOrder
             });
             maxInfoItemId = Math.max(maxInfoItemId, item.id + 1);
-          } else if (item.type === 'motionItem') {
+          } else if (item.type === 'motion' || item.type === 'motionItem') {
             loadedMotionItems.push({
-              id: item.motionId,
-              title: item.title,
+              id: item.id,
+              motionId: item.motionId,
+              title: item.title || item.agendaItem,
               parentSectionId: item.parentSectionId,
               order: item.sortOrder
             });
-            maxMotionItemId = Math.max(maxMotionItemId, item.motionId + 1);
+            maxMotionItemId = Math.max(maxMotionItemId, item.id + 1);
           } else if (item.type === 'newMotion') {
             loadedNewMotionItems.push({
               id: item.id,
@@ -373,6 +374,35 @@ export default function AgendaBuilder({ meetingId }) {
   };
 
   const handleDelete = (id) => {
+    // Before deleting the section, move all items tied to this section to global level
+    // Update info items
+    setInfoItems(prevItems => 
+      prevItems.map(item => 
+        item.parentSectionId === id 
+          ? { ...item, parentSectionId: null }
+          : item
+      )
+    );
+    
+    // Update motion items
+    setMotionItems(prevItems => 
+      prevItems.map(item => 
+        item.parentSectionId === id 
+          ? { ...item, parentSectionId: null }
+          : item
+      )
+    );
+    
+    // Update new motion items
+    setNewMotionItems(prevItems => 
+      prevItems.map(item => 
+        item.parentSectionId === id 
+          ? { ...item, parentSectionId: null }
+          : item
+      )
+    );
+    
+    // Finally, delete the section
     setSections(sections.filter(s => s.id !== id));
   };
 
@@ -673,12 +703,9 @@ export default function AgendaBuilder({ meetingId }) {
       </div>
       <h2 style={{ marginBottom: 24, textAlign: 'center' }}>Compose Your Agenda</h2>
       
-      {/* Global Information Items (not under any section) */}
-      <div
-        onDragOver={handleDragOver}
-        onDrop={handleInfoItemDropToGlobal}
-        style={{ minHeight: '20px' }}
-      >
+      {/* Global Items Section - Items without parent sections appear first */}
+      <div style={{ marginBottom: 20 }}>
+        {/* Global Information Items (not under any section) */}
         {infoItems.filter(item => !item.parentSectionId).map((item) => (
           <div
             key={item.id}
@@ -830,7 +857,7 @@ export default function AgendaBuilder({ meetingId }) {
               padding: '6px 12px',
               borderRadius: '6px'
             }}>
-              {getNewMotionItemNumber(item)}
+              NEW MOTION
             </span>
             <div style={{ 
               flex: 1, 
@@ -864,6 +891,7 @@ export default function AgendaBuilder({ meetingId }) {
         ))}
       </div>
 
+      {/* Sections and their nested items */}
       <div>
         {sections.map((section, idx) => (
           <div key={section.id}>
