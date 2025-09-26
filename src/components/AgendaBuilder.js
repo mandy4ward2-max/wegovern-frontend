@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Editor, EditorState, RichUtils, convertToRaw, convertFromRaw } from 'draft-js';
+import draftToHtml from 'draftjs-to-html';
+import 'draft-js/dist/Draft.css';
 
 const initialSections = [];
 
 export default function AgendaBuilder({ meetingId }) {
   const [sections, setSections] = useState(initialSections);
   const [sectionId, setSectionId] = useState(1);
+  const fileInputRef = useRef(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [infoItems, setInfoItems] = useState([]);
   const [infoItemId, setInfoItemId] = useState(1);
   const [editingInfoItem, setEditingInfoItem] = useState(null);
   const [showEditInfoModal, setShowEditInfoModal] = useState(false);
+  const [editInfoEditorState, setEditInfoEditorState] = useState(() => EditorState.createEmpty());
+  const [editInfoAttachmentFile, setEditInfoAttachmentFile] = useState(null);
+  const [editInfoAttachmentDesc, setEditInfoAttachmentDesc] = useState('');
+  const [dragActive, setDragActive] = useState(false);
   const [motionItems, setMotionItems] = useState([]);
   const [motionItemId, setMotionItemId] = useState(1);
   const [newMotionItems, setNewMotionItems] = useState([]);
@@ -29,6 +37,8 @@ export default function AgendaBuilder({ meetingId }) {
 
     setIsSaving(true);
     try {
+      console.log('Saving agenda with infoItems:', infoItems);
+      
       const response = await fetch(`/api/agenda/${meetingId}`, {
         method: 'POST',
         headers: {
@@ -46,6 +56,46 @@ export default function AgendaBuilder({ meetingId }) {
       const data = await response.json();
 
       if (response.ok) {
+        // After successfully saving the agenda, upload attachments for info items
+        const token = localStorage.getItem('token');
+        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000/api';
+        
+        // Use the returned ID mapping to get the correct database IDs
+        const infoItemIdMapping = data.infoItemIdMapping || {};
+        
+        for (const infoItem of infoItems) {
+          if (infoItem.attachments && infoItem.attachments.length > 0) {
+            // Get the correct database ID from the mapping
+            const databaseId = infoItemIdMapping[infoItem.id];
+            
+            if (!databaseId) {
+              console.error(`No database ID found for frontend info item ID ${infoItem.id}`);
+              continue;
+            }
+            
+            for (const attachment of infoItem.attachments) {
+              // Only upload if it has a file object (new attachment, not already saved)
+              if (attachment.file) {
+                const formData = new FormData();
+                formData.append('file', attachment.file);
+                formData.append('desc', attachment.desc);
+                
+                try {
+                  await fetch(`${apiBaseUrl}/attachments/upload/agendaItem/${databaseId}`, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                } catch (err) {
+                  console.error('Failed to upload attachment:', err);
+                  alert(`Failed to upload attachment "${attachment.desc}"`);
+                }
+              }
+            }
+          }
+        }
+        
         alert(`Agenda saved successfully! Created ${data.itemsCreated} agenda items.`);
       } else {
         alert(`Error saving agenda: ${data.error}`);
@@ -61,7 +111,10 @@ export default function AgendaBuilder({ meetingId }) {
   const handleAddInfoItem = (parentSectionId = null) => {
     const newItem = { 
       id: infoItemId, 
+      title: '',
       content: '', 
+      description: '', // For rich text content
+      attachments: [],
       parentSectionId: parentSectionId,
       order: Date.now() // Use timestamp for initial ordering
     };
@@ -78,23 +131,102 @@ export default function AgendaBuilder({ meetingId }) {
   };
 
   const handleEditInfoItem = (item) => {
-    setEditingInfoItem({ ...item });
+    console.log('handleEditInfoItem called with item:', item);
+    console.log('Item attachments:', item.attachments);
+    setEditingInfoItem({ ...item, attachments: item.attachments || [] });
+    
+    // Initialize rich text editor with existing description
+    if (item.description && item.description !== '') {
+      try {
+        // Try to parse as JSON (Rich text format)
+        const rawContent = JSON.parse(item.description);
+        const contentState = convertFromRaw(rawContent);
+        setEditInfoEditorState(EditorState.createWithContent(contentState));
+      } catch (e) {
+        console.log('Description is not JSON, treating as plain text:', e);
+        // If description is plain text or invalid JSON, create empty editor
+        setEditInfoEditorState(EditorState.createEmpty());
+      }
+    } else {
+      setEditInfoEditorState(EditorState.createEmpty());
+    }
+    
     setShowEditInfoModal(true);
   };
 
-  const handleSaveEditInfoItem = () => {
+  const handleSaveEditInfoItem = async () => {
     if (editingInfoItem) {
+      // Convert rich text editor content to raw format
+      const content = editInfoEditorState.getCurrentContent();
+      const rawContent = convertToRaw(content);
+      const description = JSON.stringify(rawContent);
+      
+      const updatedItem = {
+        ...editingInfoItem,
+        description: description
+      };
+      
+      console.log('Saving info item with data:', updatedItem);
+      
       setInfoItems(prev => prev.map(item => 
-        item.id === editingInfoItem.id ? editingInfoItem : item
+        item.id === editingInfoItem.id ? updatedItem : item
       ));
       setEditingInfoItem(null);
       setShowEditInfoModal(false);
+      setEditInfoEditorState(EditorState.createEmpty());
     }
   };
 
   const handleCancelEditInfoItem = () => {
     setEditingInfoItem(null);
     setShowEditInfoModal(false);
+    setEditInfoEditorState(EditorState.createEmpty());
+    setEditInfoAttachmentFile(null);
+    setEditInfoAttachmentDesc('');
+    setDragActive(false);
+    // Clear the file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleAddInfoAttachment = () => {
+    if (!editInfoAttachmentFile) {
+      alert('Please select a file to attach.');
+      return;
+    }
+    
+    const newAttachments = [...(editingInfoItem?.attachments || []), { 
+      file: editInfoAttachmentFile, 
+      desc: editInfoAttachmentDesc 
+    }];
+    
+    setEditingInfoItem(prev => ({ ...prev, attachments: newAttachments }));
+    setEditInfoAttachmentFile(null);
+    setEditInfoAttachmentDesc('');
+    // Clear the file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setDragActive(false);
+  };
+
+  const handleRemoveInfoAttachment = (index) => {
+    const newAttachments = editingInfoItem.attachments.filter((_, idx) => idx !== index);
+    setEditingInfoItem(prev => ({ ...prev, attachments: newAttachments }));
+  };
+
+  // Drag and drop handlers for attachments (similar to NewMotion)
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
+  };
+
+  const handleAttachmentDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setEditInfoAttachmentFile(e.dataTransfer.files[0]);
+    }
   };
 
   // New Motion-related functions
@@ -183,7 +315,10 @@ export default function AgendaBuilder({ meetingId }) {
           } else if (item.type === 'information' || item.type === 'infoItem') {
             loadedInfoItems.push({
               id: item.id,
-              content: item.agendaItem,
+              title: item.title,
+              content: item.agendaItem, // Keep for backward compatibility
+              description: item.description || '',
+              attachments: item.attachments || [],
               parentSectionId: item.parentSectionId,
               order: item.sortOrder
             });
@@ -211,9 +346,42 @@ export default function AgendaBuilder({ meetingId }) {
 
         // Update state with loaded items
         setSections(loadedSections);
-        setInfoItems(loadedInfoItems);
         setMotionItems(loadedMotionItems);
         setNewMotionItems(loadedNewMotionItems);
+        
+        // Fetch attachments for each info item
+        const infoItemsWithAttachments = await Promise.all(
+          loadedInfoItems.map(async (infoItem) => {
+            try {
+              console.log('Fetching attachments for info item:', infoItem.id);
+              const attachmentsResponse = await fetch(`/api/attachments?entityType=agendaItem&entityId=${infoItem.id}`, {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+              });
+              
+              console.log('Attachments response status:', attachmentsResponse.status);
+              
+              if (attachmentsResponse.ok) {
+                const attachments = await attachmentsResponse.json();
+                console.log('Fetched attachments for item', infoItem.id, ':', attachments);
+                return {
+                  ...infoItem,
+                  attachments: attachments || []
+                };
+              } else {
+                console.log('Failed to fetch attachments for item', infoItem.id);
+                return infoItem;
+              }
+            } catch (error) {
+              console.error('Error fetching attachments for info item:', infoItem.id, error);
+              return infoItem;
+            }
+          })
+        );
+        
+        console.log('Final info items with attachments:', infoItemsWithAttachments);
+        setInfoItems(infoItemsWithAttachments);
         
         // Update ID counters
         setSectionId(maxSectionId);
@@ -750,7 +918,7 @@ export default function AgendaBuilder({ meetingId }) {
               display: 'flex',
               alignItems: 'center'
             }}>
-              {item.content || 'Enter information item content...'}
+              {item.title || item.content || 'Enter information item title...'}
             </div>
             <button 
               type="button"
@@ -997,7 +1165,7 @@ export default function AgendaBuilder({ meetingId }) {
                       display: 'flex',
                       alignItems: 'center'
                     }}>
-                      {item.content || 'Enter information item content...'}
+                      {item.title || item.content || 'Enter information item title...'}
                     </div>
                     <button 
                       type="button"
@@ -1165,31 +1333,289 @@ export default function AgendaBuilder({ meetingId }) {
             backgroundColor: '#fff',
             padding: '30px',
             borderRadius: '12px',
-            minWidth: '500px',
-            maxWidth: '600px',
+            minWidth: '700px',
+            maxWidth: '900px',
+            maxHeight: '90vh',
+            overflow: 'auto',
             boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}>
             <h3 style={{ marginBottom: '20px', color: '#333', textAlign: 'center' }}>Edit Information Item</h3>
+            
+            {/* Title Field */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#555' }}>
-                Content:
+                Title:
               </label>
-              <textarea
-                value={editingInfoItem?.content || ''}
-                onChange={(e) => setEditingInfoItem(prev => ({ ...prev, content: e.target.value }))}
-                placeholder="Enter information item content..."
+              <input
+                type="text"
+                value={editingInfoItem?.title || ''}
+                onChange={(e) => setEditingInfoItem(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Enter information item title..."
                 style={{
                   width: '100%',
-                  minHeight: '100px',
                   padding: '12px',
                   border: '2px solid #ddd',
                   borderRadius: '8px',
                   fontSize: '16px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
+                  fontFamily: 'inherit'
                 }}
               />
             </div>
+
+            {/* Rich Text Description */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#555' }}>
+                Description:
+              </label>
+              
+              {/* Rich Text Toolbar */}
+              <div style={{ 
+                marginBottom: '8px', 
+                padding: '8px', 
+                border: '1px solid #ddd', 
+                borderRadius: '4px 4px 0 0',
+                backgroundColor: '#f8f9fa',
+                display: 'flex',
+                gap: '4px'
+              }}>
+                <button 
+                  type="button" 
+                  onClick={() => setEditInfoEditorState(RichUtils.toggleInlineStyle(editInfoEditorState, 'BOLD'))} 
+                  style={{ 
+                    fontWeight: 'bold', 
+                    padding: '4px 8px', 
+                    border: '1px solid #ccc', 
+                    borderRadius: '4px', 
+                    background: '#fff', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  B
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setEditInfoEditorState(RichUtils.toggleInlineStyle(editInfoEditorState, 'ITALIC'))} 
+                  style={{ 
+                    fontStyle: 'italic', 
+                    padding: '4px 8px', 
+                    border: '1px solid #ccc', 
+                    borderRadius: '4px', 
+                    background: '#fff', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  I
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setEditInfoEditorState(RichUtils.toggleInlineStyle(editInfoEditorState, 'UNDERLINE'))} 
+                  style={{ 
+                    textDecoration: 'underline', 
+                    padding: '4px 8px', 
+                    border: '1px solid #ccc', 
+                    borderRadius: '4px', 
+                    background: '#fff', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  U
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setEditInfoEditorState(RichUtils.toggleBlockType(editInfoEditorState, 'unordered-list-item'))} 
+                  style={{ 
+                    padding: '4px 8px', 
+                    border: '1px solid #ccc', 
+                    borderRadius: '4px', 
+                    background: '#fff', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  • List
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setEditInfoEditorState(RichUtils.toggleBlockType(editInfoEditorState, 'ordered-list-item'))} 
+                  style={{ 
+                    padding: '4px 8px', 
+                    border: '1px solid #ccc', 
+                    borderRadius: '4px', 
+                    background: '#fff', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  1. List
+                </button>
+              </div>
+              
+              {/* Rich Text Editor */}
+              <div style={{
+                border: '2px solid #ddd',
+                borderRadius: '0 0 8px 8px',
+                minHeight: '150px',
+                padding: '12px',
+                backgroundColor: '#fff'
+              }}>
+                <Editor
+                  editorState={editInfoEditorState}
+                  onChange={setEditInfoEditorState}
+                  handleKeyCommand={(command) => {
+                    const newState = RichUtils.handleKeyCommand(editInfoEditorState, command);
+                    if (newState) {
+                      setEditInfoEditorState(newState);
+                      return 'handled';
+                    }
+                    return 'not-handled';
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Attachments Section */}
+            <div style={{ marginBottom: '20px' }}>
+              <h4 style={{ color: '#333', marginBottom: '12px' }}>Attachments</h4>
+              
+              {/* Existing Attachments */}
+              {(editingInfoItem?.attachments?.length || 0) === 0 && (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>No attachments added.</p>
+              )}
+              
+              {(editingInfoItem?.attachments || []).map((att, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
+                  backgroundColor: '#f8f9fa'
+                }}>
+                  <span style={{ flex: 1 }}>
+                    <strong>{att.file?.name || 'Unknown file'}</strong>
+                    {att.desc && <span style={{ color: '#666' }}> - {att.desc}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveInfoAttachment(idx)}
+                    style={{
+                      padding: '4px 8px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      backgroundColor: '#dc3545',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+
+              {/* Add Attachment Form */}
+              <div style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '16px',
+                backgroundColor: '#f8f9fa',
+                marginTop: '12px'
+              }}>
+                <h5 style={{ margin: '0 0 12px 0', color: '#333' }}>Add Attachment</h5>
+                
+                {/* Description Input */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label>Description:</label>
+                  <input
+                    type="text"
+                    placeholder="Description (optional)"
+                    value={editInfoAttachmentDesc}
+                    onChange={(e) => setEditInfoAttachmentDesc(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+
+                {/* File Input with Drag & Drop */}
+                <div>
+                  <label>File:</label>
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleAttachmentDrop}
+                    style={{
+                      border: dragActive ? '2px solid #007bff' : '2px dashed #bbb',
+                      borderRadius: 8,
+                      padding: '24px 12px',
+                      textAlign: 'center',
+                      background: dragActive ? '#eaf2ff' : '#fafbfc',
+                      marginTop: 8,
+                      marginBottom: 8,
+                      position: 'relative',
+                      transition: 'border 0.2s, background 0.2s',
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                      style={{ display: 'none' }}
+                      onChange={(e) => setEditInfoAttachmentFile(e.target.files[0])}
+                      id="attachment-file-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                      style={{ 
+                        background: '#ff9800', 
+                        color: '#fff', 
+                        border: 'none', 
+                        borderRadius: 6, 
+                        padding: '8px 24px', 
+                        fontWeight: 'bold', 
+                        fontSize: 16, 
+                        cursor: 'pointer', 
+                        marginBottom: 8 
+                      }}
+                    >
+                      Choose file
+                    </button>
+                    <div style={{ color: '#888', margin: '8px 0' }}>or drag'n'drop here</div>
+                    <div style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
+                      File size upload limit: {editInfoAttachmentFile ? (editInfoAttachmentFile.size / 1024 / 1024).toFixed(2) : '0.00'} / 50 MB
+                    </div>
+                    {editInfoAttachmentFile && (
+                      <div style={{ color: '#007bff', marginTop: 8, fontSize: 14 }}>{editInfoAttachmentFile.name}</div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddInfoAttachment}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    backgroundColor: '#007bff',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '16px',
+                    marginTop: '8px'
+                  }}
+                >
+                  Attach
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Buttons */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 type="button"

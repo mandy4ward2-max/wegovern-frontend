@@ -214,10 +214,17 @@ function CompletedMotionPage() {
             {(motion.attachments || []).map((att, idx) => {
               const backendBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
               let fileUrl = '';
-              if (att.motionId && att.filename) {
+              if (att.entityId && att.filename) {
+                // Use the new consolidated attachment system
+                fileUrl = backendBase.replace(/\/$/, '') + `/api/attachments/download/${att.entityType || 'motion'}/${att.entityId}/${encodeURIComponent(att.filename)}`;
+              } else if (att.motionId && att.filename) {
+                // Legacy format fallback
                 fileUrl = backendBase.replace(/\/$/, '') + `/api/attachments/download/${att.motionId}/${encodeURIComponent(att.filename)}`;
               } else if (att.url) {
-                fileUrl = backendBase.replace(/\/$/, '') + (att.url.startsWith('/') ? '' : '/') + att.url.replace(/^\//, '');
+                // Direct URL fallback - ensure proper concatenation
+                const cleanBackend = backendBase.replace(/\/$/, '');
+                const cleanUrl = att.url.replace(/^\//, '');
+                fileUrl = cleanBackend + '/' + cleanUrl;
               }
               return (
                 <li key={att.id || idx} style={{ marginBottom: '8px' }}>
