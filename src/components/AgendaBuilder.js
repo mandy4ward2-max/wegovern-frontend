@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Editor, EditorState, RichUtils, convertToRaw, convertFromRaw } from 'draft-js';
+import { Editor, EditorState, RichUtils, convertToRaw, convertFromRaw, ContentState } from 'draft-js';
 import draftToHtml from 'draftjs-to-html';
 import 'draft-js/dist/Draft.css';
 
@@ -9,6 +9,7 @@ export default function AgendaBuilder({ meetingId }) {
   const [sections, setSections] = useState(initialSections);
   const [sectionId, setSectionId] = useState(1);
   const fileInputRef = useRef(null);
+  const editorRef = useRef(null);
   const [draggedItem, setDraggedItem] = useState(null);
   const [infoItems, setInfoItems] = useState([]);
   const [infoItemId, setInfoItemId] = useState(1);
@@ -39,6 +40,21 @@ export default function AgendaBuilder({ meetingId }) {
     try {
       console.log('Saving agenda with infoItems:', infoItems);
       
+      // Filter out the File objects from attachments for JSON serialization
+      // but preserve all other attachment data for existing attachments
+      const cleanedInfoItems = infoItems.map(item => ({
+        ...item,
+        attachments: (item.attachments || []).map(att => {
+          if (att.file) {
+            // For new attachments, keep minimal data - actual upload happens after save
+            return { file: {}, desc: att.desc };
+          } else {
+            // For existing attachments, include all the database data for reassociation
+            return att;
+          }
+        })
+      }));
+      
       const response = await fetch(`/api/agenda/${meetingId}`, {
         method: 'POST',
         headers: {
@@ -47,13 +63,15 @@ export default function AgendaBuilder({ meetingId }) {
         },
         body: JSON.stringify({
           sections,
-          infoItems,
+          infoItems: cleanedInfoItems,
           motionItems,
           newMotionItems
         })
       });
 
       const data = await response.json();
+      console.log('Agenda save response:', response.status, response.ok);
+      console.log('Agenda save data:', data);
 
       if (response.ok) {
         // After successfully saving the agenda, upload attachments for info items
@@ -97,12 +115,15 @@ export default function AgendaBuilder({ meetingId }) {
         }
         
         alert(`Agenda saved successfully! Created ${data.itemsCreated} agenda items.`);
+        // Reload the agenda after successful save to get the latest data
+        loadExistingAgenda();
       } else {
-        alert(`Error saving agenda: ${data.error}`);
+        console.error('Agenda save failed:', data);
+        alert(`Error saving agenda: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error saving agenda:', error);
-      alert('Error saving agenda. Please try again.');
+      alert(`Error saving agenda: ${error.message || 'Please try again.'}`);
     } finally {
       setIsSaving(false);
     }
@@ -136,22 +157,28 @@ export default function AgendaBuilder({ meetingId }) {
     setEditingInfoItem({ ...item, attachments: item.attachments || [] });
     
     // Initialize rich text editor with existing description
-    if (item.description && item.description !== '') {
+    if (item.description && item.description.trim() !== '') {
       try {
         // Try to parse as JSON (Rich text format)
         const rawContent = JSON.parse(item.description);
         const contentState = convertFromRaw(rawContent);
         setEditInfoEditorState(EditorState.createWithContent(contentState));
+        console.log('Loaded rich text content from JSON');
       } catch (e) {
         console.log('Description is not JSON, treating as plain text:', e);
-        // If description is plain text or invalid JSON, create empty editor
-        setEditInfoEditorState(EditorState.createEmpty());
+        // If description is plain text, create editor with that text
+        const contentState = ContentState.createFromText(item.description);
+        setEditInfoEditorState(EditorState.createWithContent(contentState));
       }
     } else {
+      console.log('Creating empty editor state');
       setEditInfoEditorState(EditorState.createEmpty());
     }
     
-    setShowEditInfoModal(true);
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+      setShowEditInfoModal(true);
+    }, 10);
   };
 
   const handleSaveEditInfoItem = async () => {
@@ -1449,16 +1476,28 @@ export default function AgendaBuilder({ meetingId }) {
               </div>
               
               {/* Rich Text Editor */}
-              <div style={{
-                border: '2px solid #ddd',
-                borderRadius: '0 0 8px 8px',
-                minHeight: '150px',
-                padding: '12px',
-                backgroundColor: '#fff'
-              }}>
+              <div 
+                style={{
+                  border: '2px solid #ddd',
+                  borderRadius: '0 0 8px 8px',
+                  minHeight: '150px',
+                  padding: '12px',
+                  backgroundColor: '#fff',
+                  cursor: 'text'
+                }}
+                onClick={() => {
+                  // Focus the editor when clicking on the container
+                  if (editorRef.current) {
+                    editorRef.current.focus();
+                  }
+                }}
+              >
                 <Editor
+                  ref={editorRef}
                   editorState={editInfoEditorState}
                   onChange={setEditInfoEditorState}
+                  placeholder="Enter description here..."
+                  spellCheck={true}
                   handleKeyCommand={(command) => {
                     const newState = RichUtils.handleKeyCommand(editInfoEditorState, command);
                     if (newState) {
@@ -1466,6 +1505,12 @@ export default function AgendaBuilder({ meetingId }) {
                       return 'handled';
                     }
                     return 'not-handled';
+                  }}
+                  onFocus={() => {
+                    console.log('Editor focused');
+                  }}
+                  onBlur={() => {
+                    console.log('Editor blurred');
                   }}
                 />
               </div>
@@ -1490,8 +1535,102 @@ export default function AgendaBuilder({ meetingId }) {
                   marginBottom: '8px',
                   backgroundColor: '#f8f9fa'
                 }}>
-                  <span style={{ flex: 1 }}>
-                    <strong>{att.file?.name || 'Unknown file'}</strong>
+                  <span 
+                    style={{ 
+                      flex: 1, 
+                      cursor: (att.url || (att.id && att.filename)) ? 'pointer' : 'default',
+                      textDecoration: (att.url || (att.id && att.filename)) ? 'underline' : 'none',
+                      color: (att.url || (att.id && att.filename)) ? '#007bff' : '#333'
+                    }}
+                    onClick={() => {
+                      console.log('Attachment clicked:', att);
+                      console.log('Has URL:', !!att.url);
+                      console.log('URL value:', att.url);
+                      
+                      // Use the same working pattern as motions - always use the API download route
+                      let downloadUrl = '';
+                      const backendBase = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
+                      
+                      if (att.entityId && att.filename) {
+                        // Use the new consolidated attachment system (same as motions)
+                        downloadUrl = `${backendBase.replace(/\/$/, '')}/api/attachments/download/${att.entityType || 'agendaItem'}/${att.entityId}/${encodeURIComponent(att.filename)}`;
+                      } else if (att.id && att.filename) {
+                        // Fallback: try to get entityId from the editing item
+                        const entityId = editingInfoItem?.id;
+                        if (entityId) {
+                          downloadUrl = `${backendBase.replace(/\/$/, '')}/api/attachments/download/agendaItem/${entityId}/${encodeURIComponent(att.filename)}`;
+                        }
+                      } else if (att.url) {
+                        // Fallback for legacy URLs - convert static URLs to API downloads
+                        if (att.url.includes('/uploads/attachments/agendaItem/')) {
+                          // Extract entity ID and filename from static URL
+                          const urlParts = att.url.split('/');
+                          const entityIdIdx = urlParts.indexOf('agendaItem') + 1;
+                          const entityId = urlParts[entityIdIdx];
+                          const filename = urlParts[urlParts.length - 1];
+                          if (entityId && filename) {
+                            downloadUrl = `${backendBase.replace(/\/$/, '')}/api/attachments/download/agendaItem/${entityId}/${encodeURIComponent(filename)}`;
+                          }
+                        } else {
+                          downloadUrl = att.url;
+                        }
+                      }
+                      
+                      console.log('Constructed download URL:', downloadUrl);
+                      
+                      if (downloadUrl) {
+                        // Open the file in a new tab with authentication
+                        const token = localStorage.getItem('token');
+                        
+                        console.log('Attempting to open from:', downloadUrl);
+                        
+                        // For API downloads, we need to handle authentication properly
+                        if (downloadUrl.includes('/api/attachments/download/')) {
+                          // Since window.open() can't send auth headers, we'll fetch the blob first
+                          // then create an object URL to open in a new tab
+                          fetch(downloadUrl, {
+                            method: 'GET',
+                            headers: {
+                              'Authorization': `Bearer ${token}`
+                            }
+                          })
+                          .then(response => {
+                            console.log('File fetch response status:', response.status);
+                            if (!response.ok) {
+                              return response.text().then(text => {
+                                console.error('File fetch error response:', text);
+                                throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
+                              });
+                            }
+                            return response.blob();
+                          })
+                          .then(blob => {
+                            // Create object URL and open in new tab
+                            const objectUrl = window.URL.createObjectURL(blob);
+                            const newTab = window.open(objectUrl, '_blank');
+                            
+                            // Clean up the object URL after a delay to allow the tab to load
+                            setTimeout(() => {
+                              window.URL.revokeObjectURL(objectUrl);
+                            }, 5000);
+                            
+                            if (!newTab) {
+                              // Fallback if popup was blocked
+                              alert('Popup blocked. Please allow popups for this site to view attachments.');
+                            }
+                          })
+                          .catch(error => {
+                            console.error('Error loading attachment:', error);
+                            alert(`Error loading attachment: ${error.message}`);
+                          });
+                        } else {
+                          // For non-API URLs, navigate directly
+                          window.open(downloadUrl, '_blank');
+                        }
+                      }
+                    }}
+                  >
+                    <strong>{att.file?.name || att.originalName || att.filename || 'Unknown file'}</strong>
                     {att.desc && <span style={{ color: '#666' }}> - {att.desc}</span>}
                   </span>
                   <button
